@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -13,20 +12,32 @@ import {
   Menu,
   Timer,
   BarChart3,
-  Users
+  Users,
+  ShieldCheck // Icon for Admin Dashboard
 } from 'lucide-react';
 
 import { CreditCard as Cards } from 'lucide-react';
 
+// --- MODIFIED: Added 'admin' to types and 'isAdmin' prop ---
+type Page = 'chat' | 'study-plan' | 'flashcard' | 'profile'|'timer'| 'analytics'| 'groups' | 'admin';
+
 interface NavbarProps {
-  currentPage: 'chat' | 'study-plan' | 'flashcard' | 'profile'|'timer'| 'analytics'| 'groups';
-  onPageChange: (page: 'chat' | 'study-plan' | 'flashcard' | 'profile'|'timer'| 'analytics'| 'groups') => void;
+  currentPage: Page;
+  onPageChange: (page: Page) => void;
   onLogout: () => void;
   onToggleTheme: () => void;
   theme: string;
   isMobileMenuOpen: boolean;
   onMobileMenuToggle: () => void;
+  isAdmin: boolean;
 }
+
+// --- NEW: Define a type for our nav items ---
+type NavItem = {
+  id: Page; // Use the Page type
+  label: string;
+  icon: React.ElementType; // This is the correct type for Lucide icons
+};
 
 const Navbar: React.FC<NavbarProps> = ({
   currentPage,
@@ -35,17 +46,25 @@ const Navbar: React.FC<NavbarProps> = ({
   onToggleTheme,
   theme,
   isMobileMenuOpen,
-  onMobileMenuToggle
+  onMobileMenuToggle,
+  isAdmin
 }) => {
-  const navItems = [
-    { id: 'chat' as const, label: 'Goal Mate', icon: MessageSquare },
-    { id: 'study-plan' as const, label: 'Study Plans', icon: Calendar },
-    { id: 'flashcard' as const, label: 'Flashcards', icon: Cards },
-    { id: 'timer' as const, label: 'Timer', icon: Timer },
-    { id: 'analytics' as const, label: 'Analytics', icon: BarChart3 },
-    { id: 'groups' as const, label: 'Groups', icon: Users },
-    { id: 'profile' as const, label: 'Profile', icon: User },
+
+  // --- MODIFIED: We now use the 'NavItem[]' type ---
+  const navItems: NavItem[] = [
+    { id: 'chat', label: 'Goal Mate', icon: MessageSquare },
+    { id: 'study-plan', label: 'Study Plans', icon: Calendar },
+    { id: 'flashcard', label: 'Flashcards', icon: Cards },
+    { id: 'timer', label: 'Timer', icon: Timer },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'groups', label: 'Groups', icon: Users },
+    { id: 'profile', label: 'Profile', icon: User },
   ];
+
+  // Conditionally add the Admin link (this will now work)
+  if (isAdmin) {
+    navItems.push({ id: 'admin', label: 'Admin', icon: ShieldCheck });
+  }
 
   const mobileMenuVariants = {
     closed: {
@@ -285,4 +304,4 @@ const Navbar: React.FC<NavbarProps> = ({
   );
 };
 
-export default Navbar;
+export default Navbar

@@ -8,11 +8,15 @@ import { AnalyticsService } from './AnalyticsService';
 import { AuthService } from './auth.service';
 import { FlashcardService } from './flashcard.service';
 import { GroupService } from './GroupService';
+import { NotificationService } from './NotificationService';
 import { StudyPlanService } from './study-plan.service';
 import { UserService } from './UserService';
-import { NotificationService } from './NotificationService';
+import { createClient } from '@supabase/supabase-js';
+import cron from 'node-cron';
 
-import cron from 'node-cron'; 
+// Import our admin middleware
+import { adminRequired, AuthenticatedRequest } from './middleware/admin.middleware';
+
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 3036;
@@ -31,20 +35,19 @@ const io = new Server(httpServer, {
   }
 });
 
+// Create a local Supabase Admin client for admin routes
+const supabaseUrl = 'https://tfdghduqsaniszkvzyhl.supabase.co';
+const supabaseAdminClient = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_KEY!);
+
+
 /* ====================== AUTH ROUTES ====================== */
 
 app.post('/auth/signup', async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
-    console.log('Signup Request:', { email, name });
-
     const { user, session } = await AuthService.signUp(email, password, name);
-    console.log('SignUp Success:', { userId: user.id, email: user.email });
-
     await AuthService.createUserProfile(user.id, email, name);
-    console.log('Create User Profile Success:', { userId: user.id, email });
-
-    await AuthService.signOut();
+    await AuthService.signOut(); // Force sign out so they have to log in
     res.json({ user, session });
   } catch (err: any) {
     console.error('SignUp Error:', err.message);
@@ -55,38 +58,31 @@ app.post('/auth/signup', async (req: Request, res: Response) => {
 app.post('/auth/signin', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    console.log('Signin Request:', { email });
-
     const { user, session } = await AuthService.signIn(email, password);
-    console.log('SignIn Success:', { userId: user.id, email: user.email });
-
     res.json({ user, session });
   } catch (err: any) {
     console.error('SignIn Error:', err.message);
     res.status(400).json({ error: err.message });
   }
 });
+
 app.get('/auth/user', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-
-    const user = await AuthService.getUser(token);
-    console.log('Get User Success:', { userId: user.id, email: user.email });
-
+    const user = await AuthService.getUser(token); 
     res.json({ user });
   } catch (err: any) {
     console.error('Get User Error:', err.message);
     res.status(401).json({ error: err.message });
   }
 });
+
 app.post('/auth/signout', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-
     await AuthService.signOut();
-    console.log('Signout Success');
     res.json({ message: 'Signed out successfully' });
   } catch (err: any) {
     console.error('Signout Error:', err.message);
@@ -95,60 +91,43 @@ app.post('/auth/signout', async (req: Request, res: Response) => {
 });
 
 /* ====================== AI ROUTE ====================== */
+
 app.post('/ai/generate', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      throw new Error('No authorization token provided');
-    }
-
+    if (!token) throw new Error('No authorization token provided');
     const { userId, message } = req.body;
-    if (!userId || !message) {
-      throw new Error('Missing userId or message in request body');
-    }
-
-    // Call your AIService
+    if (!userId || !message) throw new Error('Missing userId or message');
     const reply = await AIService.generateResponse(userId, message, token);
-
-    // Send the raw string reply back
-    res.json(reply);
-
+    res.json({ reply: reply });
   } catch (err: any) {
     console.error('AI /generate Route Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+/* ====================== STUDY PLAN ROUTES ====================== */
+
 app.post('/study-plan/generate', async (req, res) => {
   try {
     const { subjects, timeSlots, startDate } = req.body; 
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
-    const plan = await StudyPlanService.generatePlan(
-      user.id, 
-      subjects, 
-      timeSlots, 
-      startDate, 
-      token 
-    );
+    const plan = await StudyPlanService.generatePlan(user.id, subjects, timeSlots, startDate, token);
     res.status(201).json({ plan });
   } catch (err: any) {
     console.error('Generate Plan Route Error:', err.message);
     res.status(400).json({ error: err.message });
   }
 });
+
 app.get('/study-plan/history/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     const token = req.headers.authorization?.split(' ')[1];
     if (!token || !userId) throw new Error('Missing userId or token');
-
     const plans = await StudyPlanService.getPlanHistory(userId, token);
-    console.log('Study Plan History Success:', { userId, count: plans.length });
-
     res.json({ plans });
   } catch (err: any) {
     console.error('Study Plan History Error:', err.message);
@@ -161,10 +140,7 @@ app.get('/study-plan/:planId', async (req: Request, res: Response) => {
     const { planId } = req.params;
     const token = req.headers.authorization?.split(' ')[1];
     if (!token || !planId) throw new Error('Missing planId or token');
-
     const plan = await StudyPlanService.getPlanById(planId, token);
-    console.log('Get Study Plan Success:', { planId });
-
     res.json({ plan });
   } catch (err: any) {
     console.error('Get Study Plan Error:', err.message);
@@ -177,10 +153,7 @@ app.get('/study-plan/user/:userId', async (req: Request, res: Response) => {
     const { userId } = req.params;
     const token = req.headers.authorization?.split(' ')[1];
     if (!token || !userId) throw new Error('Missing userId or token');
-
     const plans = await StudyPlanService.getUserPlans(userId, token);
-    console.log('Get User Plans Success:', { userId, count: plans.length });
-
     res.json({ plans });
   } catch (err: any) {
     console.error('Get User Plans Error:', err.message);
@@ -194,27 +167,22 @@ app.post('/flashcard/generate', async (req: Request, res: Response) => {
   try {
     const { subject, count } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token || !subject || !count)
-      throw new Error('Missing subject, count, or token');
-
-    const flashcards = await FlashcardService.generateFlashcards('', subject, count, token);
-    console.log('Flashcard Generate Success:', { subject });
-
+    if (!token || !subject || !count) throw new Error('Missing subject, count, or token');
+    const user = await AuthService.getUser(token);
+    const flashcards = await FlashcardService.generateFlashcards(user.id, subject, count, token);
     res.json({ flashcards });
   } catch (err: any) {
     console.error('Flashcard Generate Error:', err.message);
     res.status(400).json({ error: err.message });
   }
 });
+
 app.get('/flashcards/review', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
     const reviewDeck = await FlashcardService.getReviewDeck(user.id, token);
-    console.log(`Fetched review deck for user ${user.id}, count: ${reviewDeck.length}`);
     res.json({ reviewDeck });
   } catch (err: any) {
     console.error('Get Review Deck Error:', err.message);
@@ -227,35 +195,52 @@ app.post('/flashcards/review/:cardId', async (req: Request, res: Response) => {
     const { cardId } = req.params;
     const { performance } = req.body; 
     const token = req.headers.authorization?.split(' ')[1];
-
     if (!token) throw new Error('No token provided');
     if (!performance) throw new Error('Performance rating is required');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
-    const updatedCard = await FlashcardService.updateFlashcardReview(
-      cardId,
-      user.id,
-      performance,
-      token
-    );
-    
-    console.log(`Updated review for card ${cardId}, user ${user.id}`);
+    const updatedCard = await FlashcardService.updateFlashcardReview(cardId, user.id, performance, token);
     res.json({ updatedCard });
   } catch (err: any) {
     console.error('Update Review Error:', err.message);
     res.status(400).json({ error: err.message });
   }
 });
-/* ====================== USER ROUTES ====================== */
+
+/* ====================== USER ROUTES (MODIFIED) ====================== */
+
+app.get('/user/education-level', async (req: Request, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) throw new Error('No token provided');
+    const user = await AuthService.getUser(token);
+    const data = await GroupService.getUserEducationLevel(user.id, token);
+    res.json({ level: data?.level || null });
+  } catch (err: any) {
+    console.error('Get Education Level Error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/user/education-level', async (req: Request, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) throw new Error('No token provided');
+    const { level } = req.body;
+    if (!level) throw new Error('No level provided');
+    const user = await AuthService.getUser(token);
+    await GroupService.saveUserEducationLevel(user.id, level, token);
+    res.json({ success: true, level: level });
+  } catch (err: any) {
+    console.error('Save Education Level Error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
 
 app.get('/user/statistics/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     const token = req.headers.authorization?.split(' ')[1];
     if (!token || !userId) throw new Error('Missing userId or token');
-
     const statistics = await UserService.getUserStatistics(userId, token);
     res.json({ statistics });
   } catch (err: any) {
@@ -268,9 +253,7 @@ app.post('/user/study-session', async (req: Request, res: Response) => {
   try {
     const { userId, subject, duration } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token || !userId || !subject || !duration)
-      throw new Error('Missing required fields');
-
+    if (!token || !userId || !subject || !duration) throw new Error('Missing required fields');
     await UserService.recordStudySession(userId, subject, duration, token);
     res.json({ message: 'Study session recorded successfully' });
   } catch (err: any) {
@@ -283,7 +266,6 @@ app.get('/user/achievements', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('Missing token');
-
     const achievements = await UserService.getAchievements(token);
     res.json({ achievements });
   } catch (err: any) {
@@ -293,14 +275,12 @@ app.get('/user/achievements', async (req: Request, res: Response) => {
 });
 
 /* ====================== ANALYTICS ROUTES ====================== */
+
 app.get('/analytics/subject-breakdown', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
     const data = await AnalyticsService.getSubjectBreakdown(user.id, token);
     res.json({ data });
   } catch (err: any) {
@@ -313,10 +293,7 @@ app.get('/analytics/time-series', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
     const data = await AnalyticsService.getTimeSeries(user.id, token);
     res.json({ data });
   } catch (err: any) {
@@ -325,9 +302,8 @@ app.get('/analytics/time-series', async (req: Request, res: Response) => {
   }
 });
 
-/* ====================== GROUP ROUTES ====================== */
+/* ====================== GROUP ROUTES (MODIFIED) ====================== */
 
-// Get all groups
 app.get('/groups', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -340,15 +316,11 @@ app.get('/groups', async (req, res) => {
   }
 });
 
-// Create a new group
 app.get('/groups/me', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
     const groupIds = await GroupService.getMyGroupIds(user.id, token);
     res.json({ groupIds });
   } catch (err: any) {
@@ -362,10 +334,7 @@ app.post('/groups', async (req, res) => {
     const { name, description } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
     const group = await GroupService.createGroup(user.id, name, description, token);
     res.status(201).json({ group });
   } catch (err: any) {
@@ -374,13 +343,11 @@ app.post('/groups', async (req, res) => {
   }
 });
 
-// Get details for a single group
 app.get('/groups/:groupId', async (req, res) => {
   try {
     const { groupId } = req.params;
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const group = await GroupService.getGroupDetails(groupId, token);
     res.json({ group });
   } catch (err: any) {
@@ -389,16 +356,25 @@ app.get('/groups/:groupId', async (req, res) => {
   }
 });
 
-// Join a group
+app.get('/groups/:groupId/rooms', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) throw new Error('No token provided');
+    const rooms = await GroupService.getGroupRooms(groupId, token);
+    res.json({ rooms });
+  } catch (err: any) {
+    console.error('Get Group Rooms Error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.post('/groups/:groupId/join', async (req, res) => {
   try {
     const { groupId } = req.params;
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
     await GroupService.joinGroup(user.id, groupId, token);
     res.json({ message: 'Joined group successfully' });
   } catch (err: any) {
@@ -407,16 +383,12 @@ app.post('/groups/:groupId/join', async (req, res) => {
   }
 });
 
-// Leave a group
 app.delete('/groups/:groupId/leave', async (req, res) => {
   try {
     const { groupId } = req.params;
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
     await GroupService.leaveGroup(user.id, groupId, token);
     res.json({ message: 'Left group successfully' });
   } catch (err: any) {
@@ -425,14 +397,14 @@ app.delete('/groups/:groupId/leave', async (req, res) => {
   }
 });
 
-// Get a group's message history
-app.get('/groups/:groupId/messages', async (req, res) => {
+app.get('/groups/:groupId/messages', async (req: Request, res: Response) => {
   try {
     const { groupId } = req.params;
+    const { roomName } = req.query; 
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-
-    const messages = await GroupService.getGroupMessages(groupId, token);
+    if (!roomName) throw new Error('A roomName query parameter is required');
+    const messages = await GroupService.getGroupMessages(groupId, roomName as string, token);
     res.json({ messages });
   } catch (err: any) {
     console.error('Get Messages Error:', err.message);
@@ -440,9 +412,8 @@ app.get('/groups/:groupId/messages', async (req, res) => {
   }
 });
 
-/*============================= NOTIFICATION ROUTES ====================== */
+/* ====================== NOTIFICATION ROUTES ====================== */
 
-// Route to get VAPID public key
 app.get('/notifications/vapid-key', (req, res) => {
   try {
     const key = NotificationService.getVapidKey();
@@ -453,18 +424,13 @@ app.get('/notifications/vapid-key', (req, res) => {
   }
 });
 
-// Route for the frontend to save its subscription
 app.post('/notifications/subscribe', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
     const subscription = req.body.subscription;
     if (!subscription) throw new Error('No subscription object provided');
-
     await NotificationService.saveSubscription(user.id, subscription, token);
     res.status(201).json({ message: 'Subscription saved.' });
   } catch (err: any) {
@@ -473,22 +439,12 @@ app.post('/notifications/subscribe', async (req, res) => {
   }
 });
 
-// A test route to send a notification to yourself
 app.post('/notifications/test', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('No token provided');
-    
     const user = await AuthService.getUser(token);
-    if (!user) throw new Error('User not found');
-
-    await NotificationService.sendNotification(
-      user.id,
-      'Test Notification',
-      'This is a test from Goal Mate!',
-      '/'
-    );
-    
+    await NotificationService.sendNotification(user.id, 'Test Notification', 'This is a test from Goal Mate!', '/');
     res.json({ message: 'Test notification sent.' });
   } catch (err: any) {
     console.error('Test Notification Error:', err.message);
@@ -496,8 +452,131 @@ app.post('/notifications/test', async (req, res) => {
   }
 });
 
+/* ====================== ADMIN ROUTES ====================== */
+
+app.get('/admin/stats', adminRequired, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { count: userCount, error: userError } = await supabaseAdminClient
+      .from('users')
+      .select('id', { count: 'exact', head: true });
+
+    const { count: premiumCount, error: premiumError } = await supabaseAdminClient
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('subscription_tier', 'premium');
+
+    const { count: groupCount, error: groupError } = await supabaseAdminClient
+      .from('study_groups')
+      .select('id', { count: 'exact', head: true });
+
+    if (userError || premiumError || groupError) {
+      throw new Error(userError?.message || premiumError?.message || groupError?.message);
+    }
+
+    res.json({
+      totalUsers: userCount || 0,
+      premiumUsers: premiumCount || 0,
+      totalGroups: groupCount || 0
+    });
+  } catch (err: any) {
+    console.error('Admin Stats Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/admin/users', adminRequired, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { data, error } = await supabaseAdminClient
+      .from('users')
+      .select('id, name, email, subscription_tier, created_at')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err: any) {
+    console.error('Admin Get Users Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/users/update-tier', adminRequired, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, newTier } = req.body;
+    if (!userId || !newTier) {
+      return res.status(400).json({ error: 'userId and newTier are required' });
+    }
+    
+    const { data, error } = await supabaseAdminClient
+      .from('users')
+      .update({ subscription_tier: newTier, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select('id, name, email, subscription_tier')
+      .single();
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    console.error('Admin Update Tier Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- NEW --- Admin Announcement Route
+app.post('/admin/announce', adminRequired, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // 1. Get the admin user object from the middleware
+    const adminUser = req.user;
+    if (!adminUser) throw new Error('Admin user not found on request');
+
+    const { roomName, content } = req.body;
+    if (!roomName || !content) {
+      return res.status(400).json({ error: 'roomName and content are required' });
+    }
+
+    // 2. Find the 'GOAL MATE ADMIN' group ID
+    const { data: adminGroup, error: groupError } = await supabaseAdminClient
+      .from('study_groups')
+      .select('id')
+      .eq('is_admin_group', true)
+      .single();
+    
+    if (groupError || !adminGroup) {
+      throw new Error('Admin group not found');
+    }
+
+    // 3. Save the message to the database
+    const savedMessage = await GroupService.saveMessage(
+      adminUser.id,
+      adminGroup.id,
+      roomName,
+      content,
+      null // fileUrl
+    );
+
+    // 4. Prepare the message to broadcast over Sockets
+    const broadcastMessage = {
+      ...savedMessage,
+      users: {
+        name: adminUser.name,
+        avatar_url: null // We removed this
+      }
+    };
+
+    // 5. Broadcast the message to the correct room
+    const roomSocketName = `${adminGroup.id}-${roomName}`;
+    io.to(roomSocketName).emit('receive_message', broadcastMessage);
+
+    res.status(201).json({ success: true, message: savedMessage });
+
+  } catch (err: any) {
+    console.error('Admin Announce Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 /* ====================== SOCKET.IO LOGIC ====================== */
+
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) {
@@ -505,15 +584,13 @@ io.use(async (socket, next) => {
   }
   try {
     const user = await AuthService.getUser(token);
-    if (!user) {
-      return next(new Error('Authentication error: Invalid user.'));
-    }
     (socket as any).user = user; 
     next();
   } catch (err) {
     next(new Error('Authentication error: Invalid token.'));
   }
 });
+
 io.on('connection', (socket) => {
   const user = (socket as any).user; 
 
@@ -523,76 +600,183 @@ io.on('connection', (socket) => {
     return;
   }
 
+  (socket as any).currentRoom = null;
   console.log(`✅ User connected: ${user.email} (ID: ${user.id})`);
+  socket.join(user.id);
 
-  // Event: Client joins a group's room
-  socket.on('join_group', (groupId: string) => {
-    socket.join(groupId);
-    console.log(`User ${user.id} joined room ${groupId}`);
+  const broadcastOnlineUsers = async (roomSocketName: string) => {
+    try {
+      const socketsInRoom = await io.in(roomSocketName).fetchSockets();
+      const onlineUsers = socketsInRoom.map(s => {
+        const socketUser = (s as any).user;
+        return {
+          id: socketUser.id,
+          name: socketUser.name,
+          avatar_url: null // --- FIX --- (was: socketUser.avatar_url)
+        };
+      });
+      io.to(roomSocketName).emit('online_users_update', onlineUsers);
+      console.log(`Broadcasted online users for ${roomSocketName}: ${onlineUsers.length} users`);
+    } catch (err: any) {
+      console.error(`Error broadcasting online users for ${roomSocketName}:`, err.message);
+    }
+  };
+
+  socket.on('join_room', async (payload: { groupId: string, roomName: string }) => {
+    const { groupId, roomName } = payload;
+    if (!groupId || !roomName) return;
+    const roomSocketName = `${groupId}-${roomName}`;
+    const oldRoom = (socket as any).currentRoom;
+    if (oldRoom && oldRoom !== roomSocketName) {
+      socket.leave(oldRoom);
+      await broadcastOnlineUsers(oldRoom); 
+    }
+    socket.join(roomSocketName);
+    (socket as any).currentRoom = roomSocketName; 
+    console.log(`User ${user.id} joined room ${roomSocketName}`);
+    await broadcastOnlineUsers(roomSocketName);
   });
 
-  // Event: Client sends a new message
-  socket.on('send_message', async (payload: { groupId: string, content: string }) => {
-    const { groupId, content } = payload;
-    try {
-      // 1. Save the message to the database
-      const savedMessage = await GroupService.saveMessage(user.id, groupId, content);
+  socket.on('leave_room', async (payload: { groupId: string, roomName: string }) => {
+    const { groupId, roomName } = payload;
+    if (!groupId || !roomName) return;
+    const roomSocketName = `${groupId}-${roomName}`;
+    socket.leave(roomSocketName);
+    (socket as any).currentRoom = null; 
+    console.log(`User ${user.id} left room ${roomSocketName}`);
+    await broadcastOnlineUsers(roomSocketName);
+  });
 
-      // 2. Prepare the broadcast object
+  socket.on('send_message', async (payload: { 
+    groupId: string, 
+    roomName: string, 
+    content: string,
+    fileUrl: string | null 
+  }) => {
+    const { groupId, roomName, content, fileUrl } = payload;
+    if (!groupId || !roomName || (!content && !fileUrl)) return;
+    const roomSocketName = `${groupId}-${roomName}`;
+    
+    try {
+      const savedMessage = await GroupService.saveMessage(user.id, groupId, roomName, content, fileUrl);
       const broadcastMessage = {
         ...savedMessage,
-        users: { // This matches our getGroupMessages query
+        users: {
           name: user.name,
-          avatar_url: (user as any).avatar_url || null
+          avatar_url: null // --- FIX --- (was: (user as any).avatar_url)
         }
       };
-
-      // 3. Broadcast the new message
-      io.to(groupId).emit('receive_message', broadcastMessage);
+      io.to(roomSocketName).emit('receive_message', broadcastMessage);
     
+      try {
+        const socketsInRoom = await io.in(roomSocketName).fetchSockets();
+        const onlineUserIds = socketsInRoom.map(s => (s as any).user.id);
+        const allMemberIds = await GroupService.getGroupMembers(groupId);
+        const offlineUserIds = allMemberIds.filter(
+          id => !onlineUserIds.includes(id) && id !== user.id
+        );
+
+        if (offlineUserIds.length > 0) {
+          console.log(`Sending push notifications to ${offlineUserIds.length} offline members of room ${roomSocketName}.`);
+          const messageSnippet = content ? (content.length > 100 ? content.substring(0, 97) + '...' : content) : "Sent an attachment";
+          const notificationTasks = offlineUserIds.map(userId => 
+            NotificationService.sendNotification(
+              userId,
+              `${user.name} (#${roomName})`,
+              messageSnippet,
+              `/study-groups/${groupId}?room=${roomName}`
+            )
+          );
+          await Promise.allSettled(notificationTasks);
+        }
+      } catch (pushError: any) {
+        console.error('Socket send_push_notification error:', pushError.message);
+      }
     } catch (err: any) {
       console.error('Socket send_message error:', err.message);
       socket.emit('error_message', 'Failed to send message.');
     }
   });
 
-  // --- NEW: Typing Indicator Events ---
-  socket.on('typing_start', (groupId: string) => {
-    // Broadcast to everyone *except* the user who is typing
-    socket.to(groupId).emit('user_typing_start', {
+  socket.on('add_reaction', async (payload: {
+    messageId: number, 
+    emoji: string, 
+    groupId: string, 
+    roomName: string 
+  }) => {
+    try {
+      const { messageId, emoji, groupId, roomName } = payload;
+      if (!messageId || !emoji || !groupId || !roomName) return;
+      const updatedMessage = await GroupService.addReaction(messageId, user.id, emoji);
+      const roomSocketName = `${groupId}-${roomName}`;
+      io.to(roomSocketName).emit('reaction_update', updatedMessage);
+    } catch (err: any) {
+      console.error('Socket add_reaction error:', err.message);
+      socket.emit('error_message', 'Failed to add reaction.');
+    }
+  });
+
+  socket.on('message_read', async (payload: { 
+    messageId: number,
+    groupId: string, 
+    roomName: string 
+  }) => {
+    try {
+      const { messageId, groupId, roomName } = payload;
+      if (!messageId || !groupId || !roomName) return;
+      const token = (socket as any).handshake.auth.token;
+      await GroupService.addReadReceipt(messageId, user.id, token);
+      const roomSocketName = `${groupId}-${roomName}`;
+      io.to(roomSocketName).emit('read_receipt_update', { 
+        messageId: messageId, 
+        userId: user.id 
+      });
+    } catch (err: any) {
+      console.error('Socket message_read error:', err.message);
+    }
+  });
+
+  socket.on('typing_start', (payload: { groupId: string, roomName: string }) => {
+    if (!payload.groupId || !payload.roomName) return;
+    const roomSocketName = `${payload.groupId}-${payload.roomName}`;
+    socket.to(roomSocketName).emit('user_typing_start', {
       userId: user.id,
       name: user.name,
     });
   });
 
-  socket.on('typing_stop', (groupId: string) => {
-    // Broadcast to everyone *except* the user who is typing
-    socket.to(groupId).emit('user_typing_stop', {
+  socket.on('typing_stop', (payload: { groupId: string, roomName: string }) => {
+    if (!payload.groupId || !payload.roomName) return;
+    const roomSocketName = `${payload.groupId}-${payload.roomName}`;
+    socket.to(roomSocketName).emit('user_typing_stop', {
       userId: user.id,
     });
   });
-  socket.on('disconnect', () => {
+
+  socket.on('disconnect', async () => {
     console.log(`User disconnected: ${user.email}`);
+    const roomSocketName = (socket as any).currentRoom;
+    if (roomSocketName) {
+      await broadcastOnlineUsers(roomSocketName);
+    }
   });
 });
 
+/* ====================== CRON JOBS ====================== */
 
 console.log("Setting up cron jobs...");
-
-// Study Plan: Runs every hour
 cron.schedule('0 * * * *', () => {
   console.log('CronJob: Running hourly task for study plan reminders...');
   StudyPlanService.sendUpcomingSessionNotifications();
 });
-
-// --- 2. NEW: Flashcard Job ---
-// Runs every day at 9:00 AM
 cron.schedule('0 9 * * *', () => {
   console.log('CronJob: Running daily task for flashcard reminders...');
   FlashcardService.sendReviewNotifications();
 });
 
+/* ====================== START SERVER ====================== */
+
 console.log("Cron jobs scheduled.");
 httpServer.listen(port, () => {
-  console.log(`Server & Socket.io running on port ${port}`);
+  console.log(`🚀 Server & Socket.io running on port ${port}`);
 });

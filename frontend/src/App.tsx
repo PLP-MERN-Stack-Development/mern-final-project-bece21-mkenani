@@ -13,6 +13,8 @@ import UserProfile from './components/UserProfile';
 import { SocketProvider } from './contexts/SocketContext';
 import StudyGroups from './components/StudyGroups'; 
 import GroupChat from './components/GroupChat';
+import AdminDashboard from './components/AdminDashboard'; // --- NEW ---
+
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3036';
 
 interface ThemeContextType {
@@ -25,7 +27,13 @@ export const ThemeContext = createContext<ThemeContextType>({
   toggleTheme: () => {},
 });
 
-type Page = 'chat' | 'study-plan' | 'flashcard' | 'profile' | 'timer'| 'analytics'| 'groups';
+// --- MODIFIED --- Added 'admin' page
+type Page = 'chat' | 'study-plan' | 'flashcard' | 'profile' | 'timer'| 'analytics'| 'groups' | 'admin';
+
+type SelectedGroup = {
+  id: string;
+  roomName: string;
+} | null;
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,7 +42,8 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('chat');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<SelectedGroup>(null);
+  const [isAdmin, setIsAdmin] = useState(false); // --- NEW ---
 
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
@@ -46,34 +55,39 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // --- MODIFIED --- Fetches user and admin status
   useEffect(() => {
     const validateToken = async () => {
       const token = localStorage.getItem('auth_token');
       if (!token) {
         setIsAuthenticated(false);
+        setIsAdmin(false);
         setIsLoading(false);
         return;
       }
-
       try {
         const res = await axios.get(`${apiUrl}/auth/user`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setIsAuthenticated(!!res.data.user);
+        setIsAdmin(res.data.user?.is_admin || false); // --- NEW ---
       } catch (err: any) {
         console.error('Validate Token Error:', err.response?.data || err.message);
         localStorage.removeItem('auth_token');
         setIsAuthenticated(false);
+        setIsAdmin(false);
       }
       setIsLoading(false);
     };
     validateToken();
   }, []);
 
+  // --- MODIFIED --- Fetches user and admin status
   const handleAuthSuccess = async () => {
     const token = localStorage.getItem('auth_token');
     if (!token) {
       setIsAuthenticated(false);
+      setIsAdmin(false);
       return;
     }
     try {
@@ -81,13 +95,16 @@ const App: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setIsAuthenticated(!!res.data.user);
+      setIsAdmin(res.data.user?.is_admin || false); // --- NEW ---
     } catch (err: any) {
       console.error('Auth Success Validate Error:', err.response?.data || err.message);
       localStorage.removeItem('auth_token');
       setIsAuthenticated(false);
+      setIsAdmin(false);
     }
   };
 
+  // --- MODIFIED --- Resets admin status on logout
   const handleLogout = async () => {
     try {
       await axios.post(`${apiUrl}/auth/signout`, {}, {
@@ -98,23 +115,24 @@ const App: React.FC = () => {
     }
     localStorage.removeItem('auth_token');
     setIsAuthenticated(false);
+    setIsAdmin(false); // --- NEW ---
     setCurrentPage('chat');
     setIsMobileMenuOpen(false);
     setIsReviewing(false);
-    setSelectedGroupId(null);
+    setSelectedGroup(null);
   };
 
   const handlePageChange = (page: Page) => {
     setCurrentPage(page);
     setIsMobileMenuOpen(false);
     setIsReviewing(false);
-    setSelectedGroupId(null);
+    setSelectedGroup(null);
   };
 
   const handleBackToDashboard = () => {
     setCurrentPage('chat');
     setIsReviewing(false);
-    setSelectedGroupId(null);
+    setSelectedGroup(null);
   };
 
   if (isLoading) {
@@ -131,6 +149,7 @@ const App: React.FC = () => {
         {isAuthenticated ? (
         <SocketProvider>
           <>
+            {/* --- MODIFIED --- Pass isAdmin prop */}
             <Navbar
               currentPage={currentPage}
               onPageChange={handlePageChange}
@@ -139,127 +158,86 @@ const App: React.FC = () => {
               theme={theme}
               isMobileMenuOpen={isMobileMenuOpen}
               onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              isAdmin={isAdmin} // --- NEW ---
             />
             
             <main className="pt-16">
               <div className="p-4 sm:p-6 md:p-8">
                 <AnimatePresence mode="wait">
-                  {currentPage === 'chat' && (
-                    <motion.div
-                      key="chat"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Chat />
-                    </motion.div>
-                  )}
-                    {currentPage === 'analytics' && (
-                      <motion.div
-                        key="analytics"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <AdvancedAnalytics />
-                      </motion.div>
-                    )}
-                  {currentPage === 'study-plan' && (
-                    <motion.div
-                      key="study-plan"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <StudyPlan />
-                    </motion.div>
-                  )}
-                  
-                  {currentPage === 'flashcard' && (
-                    <div key="flashcard-page">
-                      <AnimatePresence mode="wait">
-                        {!isReviewing ? (
-                          <motion.div
-                            key="flashcard-main"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <Flashcard onStartReview={() => setIsReviewing(true)} />
-                          </motion.div>
-                        ) : (
-                          <motion.div
-                            key="flashcard-review"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <ReviewSession onSessionComplete={() => setIsReviewing(false)} />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  )}
-                  
-                  {currentPage === 'timer' && (
-                    <motion.div
-                      key="timer"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <StudySessionTimer />
-                    </motion.div>
-                  )}
-                       {currentPage === 'groups' && (
-                        <div key="groups-page">
-                          <AnimatePresence mode="wait">
-                            {!selectedGroupId ? (
-                              // Show the Group Lobby
-                              <motion.div
-                                key="group-lobby"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                transition={{ duration: 0.3 }}
-                              >
-                                <StudyGroups onSelectGroup={(groupId) => setSelectedGroupId(groupId)} />
-                              </motion.div>
-                            ) : (
-                              // Show the specific Group Chat
-                              <motion.div
-                                key="group-chat"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                transition={{ duration: 0.3 }}
-                              >
-                                <GroupChat
-                                  groupId={selectedGroupId}
-                                  onBack={() => setSelectedGroupId(null)}
-                                />
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                    )}         
-                  {currentPage === 'profile' && (
-                    <motion.div
-                      key="profile"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <UserProfile onBack={handleBackToDashboard} />
-                    </motion.div>
-                  )}
+                {currentPage === 'chat' && (
+                  <motion.div key="chat" /* ... */ >
+                    <Chat />
+                  </motion.div>
+                )}
+                {currentPage === 'analytics' && (
+                  <motion.div key="analytics" /* ... */ >
+                    <AdvancedAnalytics />
+                  </motion.div>
+                )}
+                {currentPage === 'study-plan' && (
+                  <motion.div key="study-plan" /* ... */ >
+                    <StudyPlan />
+                  </motion.div>
+                )}
+                {currentPage === 'flashcard' && (
+                  <div key="flashcard-page">
+                    <AnimatePresence mode="wait">
+                      {!isReviewing ? (
+                        <motion.div key="flashcard-main" /* ... */ >
+                          <Flashcard onStartReview={() => setIsReviewing(true)} />
+                        </motion.div>
+                      ) : (
+                        <motion.div key="flashcard-review" /* ... */ >
+                          <ReviewSession onSessionComplete={() => setIsReviewing(false)} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+                {currentPage === 'timer' && (
+                  <motion.div key="timer" /* ... */ >
+                    <StudySessionTimer />
+                  </motion.div>
+                )}
+                {currentPage === 'groups' && (
+                  <div key="groups-page">
+                    <AnimatePresence mode="wait">
+                      {!selectedGroup ? (
+                        <motion.div key="group-lobby" /* ... */ >
+                          <StudyGroups 
+                            onSelectGroup={(groupId) => setSelectedGroup({ id: groupId, roomName: 'general' })}
+                            onSelectAdminRoom={(groupId, roomName) => setSelectedGroup({ id: groupId, roomName: roomName })}
+                          />
+                        </motion.div>
+                      ) : (
+                        <motion.div key="group-chat" /* ... */ >
+                          <GroupChat
+                            groupId={selectedGroup.id}
+                            roomName={selectedGroup.roomName}
+                            onBack={() => setSelectedGroup(null)}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )} 
+                {currentPage === 'profile' && (
+                  <motion.div key="profile" /* ... */ >
+                    <UserProfile onBack={handleBackToDashboard} />
+                  </motion.div>
+                )}
+                {/* --- NEW ADMIN PAGE ROUTE --- */}
+                {currentPage === 'admin' && (
+                  <motion.div
+                    key="admin"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <AdminDashboard />
+                  </motion.div>
+                )}
                 </AnimatePresence>
               </div>
             </main>

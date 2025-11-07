@@ -7,6 +7,9 @@ dotenv.config();
 const supabaseUrl = 'https://tfdghduqsaniszkvzyhl.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmZGdoZHVxc2FuaXN6a3Z6eWhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkxMzIwMTcsImV4cCI6MjA3NDcwODAxN30.8ga6eiQymTcO3OZLGDe3WuAHkWcxgRA9ywG3xJ6QzNI';
 
+// Your Admin User ID for the check
+const ADMIN_USER_ID = '5f7c1297-267e-4cd8-98ac-ed27110c65c1';
+
 // The public client (for auth functions)
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -20,17 +23,14 @@ if (!process.env.SUPABASE_SERVICE_KEY) {
 export class AuthService {
 
   // -------------------------
-  // SIGN UP
+  // SIGN UP (Unchanged)
   // -------------------------
   static async signUp(email: string, password: string, name: string) {
     if (!email || !password || !name) {
       throw new Error('Email, password, and name are required for signup');
     }
-
     try {
       console.log('Starting signup process:', { email, name });
-
-      // Use the PUBLIC client for authentication
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -42,7 +42,6 @@ export class AuthService {
 
       console.log('Auth user created:', { id: data.user.id, email: data.user.email });
       
-      // Use the ADMIN client to create the profile
       await AuthService.ensureUserProfile(data.user.id, email, name);
 
       return {
@@ -61,12 +60,10 @@ export class AuthService {
   }
 
   // -------------------------
-  // SIGN IN
+  // SIGN IN (Unchanged)
   // -------------------------
   static async signIn(email: string, password: string) {
     console.log('Starting signin process:', { email });
-
-    // Use the PUBLIC client for authentication
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -77,7 +74,6 @@ export class AuthService {
 
     console.log('User signed in:', { id: data.user.id, email: data.user.email });
 
-    // Use the ADMIN client to ensure the profile exists
     await AuthService.ensureUserProfile(
       data.user.id,
       data.user.email!,
@@ -96,48 +92,62 @@ export class AuthService {
   }
 
   // -------------------------
-  // GET USER
+  // GET USER (--- THIS IS THE MODIFIED FUNCTION ---)
   // -------------------------
   static async getUser(token: string) {
-    // Use the PUBLIC client to validate the token
+    // 1. Use the PUBLIC client to validate the token
     const { data, error } = await supabase.auth.getUser(token);
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error('No user found');
 
     const user = data.user;
 
-    // Use the ADMIN client to ensure the profile exists
+    // 2. Use the ADMIN client to ensure the profile exists
     await AuthService.ensureUserProfile(
       user.id,
       user.email!,
       user.user_metadata?.name || 'User'
     );
 
-    // Now, fetch the full profile from the 'users' table
-    const { data: profile } = await supabaseAdmin
+    // 3. --- MODIFIED ---
+    // Fetch profile, subscription tier, AND education level
+    const { data: combinedData, error: combinedError } = await supabaseAdmin
       .from('users')
-      .select('name, avatar_url')
+      .select(`
+        name,
+        subscription_tier,
+        user_education_level ( level )
+      `)
       .eq('id', user.id)
       .single();
+
+    if (combinedError) {
+      console.error('Error fetching user profile/education level:', combinedError.message);
+      throw new Error(combinedError.message);
+    }
+    
+    // 4. Process the data
+    const education = (combinedData as any)?.user_education_level;
+    const isAdmin = user.id === ADMIN_USER_ID;
 
     return {
       id: user.id,
       email: user.email,
-      name: profile?.name || user.user_metadata?.name || 'User',
-      avatar_url: (profile as any)?.avatar_url || null,
+      name: combinedData?.name || user.user_metadata?.name || 'User',
+      // --- avatar_url line REMOVED ---
       created_at: user.created_at,
       last_sign_in_at: user.last_sign_in_at,
+      subscription_tier: combinedData?.subscription_tier || 'free',
+      education_level: education?.level || null,
+      is_admin: isAdmin
     };
   }
 
   // -------------------------
-  // CREATE PROFILE (USES ADMIN)
-  // This is the function that was failing
+  // CREATE PROFILE (Unchanged)
   // -------------------------
   static async createUserProfile(userId: string, email: string, name: string) {
     try {
-      // --- FIX: We add the "check-first" logic here ---
-      // This check prevents the "duplicate key" race condition.
       const { data: existingUser } = await supabaseAdmin
         .from('users')
         .select('id')
@@ -148,9 +158,7 @@ export class AuthService {
         console.log('User profile already exists, skipping creation.');
         return existingUser;
       }
-      // --- End Fix ---
 
-      // If no user was found, we insert
       const { data, error } = await supabaseAdmin
         .from('users')
         .insert([
@@ -166,7 +174,6 @@ export class AuthService {
         .single();
 
       if (error) {
-        // This will now only show *other* errors, not "duplicate key"
         throw new Error(error.message);
       }
 
@@ -179,32 +186,25 @@ export class AuthService {
   }
 
   // -------------------------
-  // ENSURE PROFILE EXISTS (USES ADMIN)
-  // This is the function that calls createUserProfile
+  // ENSURE PROFILE EXISTS (Unchanged)
   // -------------------------
   static async ensureUserProfile(userId: string, email: string, name: string) {
     try {
-      // We must check for the error, not use try/catch for flow control
       const { data: existingUser, error: fetchError } = await supabaseAdmin
         .from('users')
         .select('id')
         .eq('id', userId)
         .single();
 
-      // Case 1: User was found. We are done.
       if (existingUser) {
         return;
       }
 
-      // Case 2: User was not found (PGRST116)
       if (fetchError && fetchError.code === 'PGRST116') {
-        // This is the expected path for a new user. Create the profile.
         await AuthService.createUserProfile(userId, email, name);
       } else if (fetchError) {
-        // An unexpected database error occurred
         console.error('Error ensuring profile:', fetchError);
       } else {
-        // Failsafe: existingUser is null but fetchError is also null
         await AuthService.createUserProfile(userId, email, name);
       }
     } catch (err: any) {
@@ -213,10 +213,9 @@ export class AuthService {
   }
 
   // -------------------------
-  // SIGN OUT
+  // SIGN OUT (Unchanged)
   // -------------------------
   static async signOut() {
-    // Use the PUBLIC client
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message);
   }
