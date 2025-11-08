@@ -14,6 +14,7 @@ import { SocketProvider } from './contexts/SocketContext';
 import StudyGroups from './components/StudyGroups'; 
 import GroupChat from './components/GroupChat';
 import AdminDashboard from './components/AdminDashboard'; // --- NEW ---
+import ToastProvider from './components/ToastProvider';
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3036';
 
@@ -249,6 +250,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
+      <ToastProvider /> 
     </ThemeContext.Provider>
   );
 };

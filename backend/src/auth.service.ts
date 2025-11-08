@@ -116,7 +116,7 @@ export class AuthService {
       .select(`
         name,
         subscription_tier,
-        user_education_level ( level )
+        user_education_level (level)
       `)
       .eq('id', user.id)
       .single();

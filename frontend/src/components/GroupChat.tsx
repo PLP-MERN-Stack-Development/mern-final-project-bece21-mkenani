@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle, ArrowLeft, Loader2, LogOut, Send,
   MessageSquare, Paperclip, Smile, CheckCheck,
-  Menu // --- NEW ---
+  Menu, Lock 
 } from 'lucide-react';
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { ThemeContext } from '../App';
@@ -16,7 +16,7 @@ import ConfirmationModal from './ConfirmationModal';
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3036';
 
-// --- Interfaces (unchanged) ---
+// --- Interfaces ---
 interface ChatMessage {
   id: bigint;
   content: string;
@@ -56,27 +56,26 @@ interface GroupChatProps {
   roomName: string;
   onBack: () => void;
 }
+interface CurrentUser {
+  id: string | null;
+  is_admin: boolean;
+  education_level: string | null;
+}
 
-// --- EmojiPicker component (kept from old) ---
+// --- EmojiPicker component ---
 const EmojiPicker: React.FC<{ onEmojiSelect: (emoji: string) => void }> = ({ onEmojiSelect }) => {
   const emojis = [
     '👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '👏', '😍', '😊',
     '🎉', '🤔', '🌟', '📚', '📖', '🎓', '✏️', '🙌', '👎', '🥳', '🤗', '😇', '🥺'
   ];
   return (
-    <div className="absolute bottom-16 -left-10 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-4 z-20  max-w-md transition-all">
+    <div className="absolute bottom-16 -left-10 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-4 z-20 max-w-md transition-all">
       <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-9 lg:grid-cols-10 gap-1 justify-items-center">
         {emojis.map(emoji => (
           <button
             key={emoji}
             onClick={() => onEmojiSelect(emoji)}
-            className="
-              text-lg sm:text-xl md:text-2xl
-              hover:scale-125 active:scale-95
-              transition-transform duration-200 ease-out
-              p-1 rounded-lg
-              hover:bg-gray-100 dark:hover:bg-gray-700
-            "
+            className="text-lg sm:text-xl md:text-2xl hover:scale-125 active:scale-95 transition-transform duration-200 ease-out p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             {emoji}
           </button>
@@ -85,13 +84,108 @@ const EmojiPicker: React.FC<{ onEmojiSelect: (emoji: string) => void }> = ({ onE
     </div>
   );
 };
+
+// --- Sidebar Sub-Component ---
+const AdminSidebarContent: React.FC<{
+  groupDetails: GroupDetails | null;
+  roomList: GroupRoom[];
+  currentRoom: string;
+  onlineUsers: OnlineUser[];
+  currentUser: CurrentUser;
+  onSwitchRoom: (room: GroupRoom) => void;
+}> = ({ groupDetails, roomList, currentRoom, onlineUsers, currentUser, onSwitchRoom }) => {
+  return (
+    <div className="w-64 flex-shrink-0 bg-gray-50 dark:bg-gray-900 flex flex-col h-full">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+          {groupDetails?.name}
+        </h2>
+      </div>
+
+      {/* Room List (NOW WITH SECURITY) */}
+      <div className="p-4 space-y-2 flex-1 overflow-y-auto">
+        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          Rooms
+        </h3>
+        {roomList.map((room) => {
+          const isEducationRoom = ['primary', 'secondary', 'tertiary'].includes(room.room_name);
+          
+          // --- FIX: Correctly use isEducationRoom variable ---
+          const isAllowed = 
+            currentUser.is_admin || // Admins can join any room
+            !isEducationRoom || // Everyone can join non-education rooms (like 'general')
+            room.room_name === currentUser.education_level; // User can join their matching level
+
+          return (
+            <button
+              key={room.id}
+              onClick={() => isAllowed ? onSwitchRoom(room) : null}
+              disabled={!isAllowed}
+              title={!isAllowed ? "You don't have permission for this room" : `Join ${room.room_name} room`}
+              className={`
+                w-full text-left p-3 rounded-lg flex items-center justify-between gap-3 transition-colors
+                ${currentRoom === room.room_name
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }
+                ${!isAllowed ? 'opacity-50 cursor-not-allowed' : ''}
+              `}
+            >
+              <div className="flex items-center gap-3">
+                <MessageSquare className="w-5 h-5" />
+                <span className="font-medium capitalize">{room.room_name}</span>
+              </div>
+              {!isAllowed && (
+                <Lock className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Online Users */}
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+          Online ({onlineUsers.length})
+        </h3>
+        <div className="space-y-2 max-h-48 overflow-y-auto">
+          {onlineUsers.length === 0 && (
+            <span className="text-sm text-gray-500 dark:text-gray-400 p-2">
+              Just you in here.
+            </span>
+          )}
+          {onlineUsers.map((user) => (
+            <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-semibold text-xs">
+                {user.name.substring(0, 2).toUpperCase()}
+              </div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                {user.name}
+                {user.id === currentUser.id && ' (You)'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// --- Main GroupChat Component ---
 const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
   useContext(ThemeContext);
   const { socket, isConnected } = useSocket();
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  // --- FIX: Removed the old 'currentUserId' state ---
+  const [currentUser, setCurrentUser] = useState<CurrentUser>({
+    id: null,
+    is_admin: false,
+    education_level: null
+  });
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,17 +194,15 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  // --- NEW: Admin Chat State ---
   const [isAdminGroup, setIsAdminGroup] = useState(false);
   const [currentRoom, setCurrentRoom] = useState(roomName);
   const [roomList, setRoomList] = useState<GroupRoom[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [readReceipts, setReadReceipts] = useState<Record<string, Set<string>>>({});
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false); // --- NEW ---
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // --- Load Chat Room useEffect (merged from old) ---
+  // --- Load Chat Room ---
   useEffect(() => {
     const loadChatRoom = async () => {
       setIsLoading(true);
@@ -126,7 +218,13 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
 
         const user = userRes.data.user;
         const group = groupRes.data.group;
-        setCurrentUserId(user.id);
+        
+        setCurrentUser({
+          id: user.id,
+          is_admin: user.is_admin,
+          education_level: user.education_level
+        });
+
         setGroupDetails(group);
         setIsAdminGroup(group.is_admin_group);
 
@@ -156,7 +254,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     loadChatRoom();
   }, [groupId, roomName]);
 
-  // --- Socket.io listeners useEffect (merged and extended) ---
+  // --- Socket.io listeners ---
   useEffect(() => {
     if (!socket || !isConnected || !groupDetails) return;
 
@@ -168,21 +266,17 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
         setMessages(prevMessages => [...prevMessages, incoming]);
       }
     };
-
     const handleUserTyping = (user: TypingUser) => {
       setTypingUsers(prev => (prev.find(u => u.userId === user.userId) ? prev : [...prev, user]));
     };
-
     const handleUserStopTyping = (user: { userId: string }) => {
       setTypingUsers(prev => prev.filter(u => u.userId !== user.userId));
     };
-
     const handleReactionUpdate = (updatedMessage: { id: bigint; reactions: any }) => {
       setMessages(prev => prev.map(msg =>
         msg.id === updatedMessage.id ? { ...msg, reactions: updatedMessage.reactions } : msg
       ));
     };
-
     const handleReadReceipt = (receipt: { messageId: bigint; userId: string }) => {
       setReadReceipts(prev => {
         const newReceipts = { ...prev };
@@ -192,8 +286,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
         return newReceipts;
       });
     };
-
-    // --- NEW --- Online users update
     const handleOnlineUsers = (users: OnlineUser[]) => {
       setOnlineUsers(users);
     };
@@ -217,12 +309,12 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     };
   }, [socket, isConnected, groupId, currentRoom, groupDetails]);
 
-  // --- Auto-scroll on message change ---
+  // --- Auto-scroll ---
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typingUsers]);
 
-  // --- Handle Leave Group (unchanged logic merged) ---
+  // --- Handle Leave Group ---
   const handleLeaveGroup = () => setShowLeaveModal(true);
   const executeLeave = async () => {
     setIsLeaving(true);
@@ -242,18 +334,16 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     }
   };
 
-  // --- Handle Send Message (merged) ---
+  // --- Handle Send Message ---
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !socket || !isConnected) return;
-
     socket.emit('send_message', {
       groupId,
       roomName: currentRoom,
       content: newMessage,
       fileUrl: null
     });
-
     socket.emit('typing_stop', { groupId, roomName: currentRoom });
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -263,7 +353,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     setShowEmojiPicker(false);
   };
 
-  // --- Handle Typing (merged) ---
+  // --- Handle Typing ---
   const handleTypingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewMessage(e.target.value);
     if (!socket || !isConnected) return;
@@ -278,17 +368,15 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     }, 2000);
   };
 
-  // --- MODIFIED: switchRoom now also closes mobile sidebar ---
+  // --- switchRoom ---
   const switchRoom = async (room: GroupRoom) => {
     if (room.room_name === currentRoom) return;
-
-    setIsMobileSidebarOpen(false); // --- NEW ---
+    setIsMobileSidebarOpen(false);
     setIsLoading(true);
     setMessages([]);
     setTypingUsers([]);
     setOnlineUsers([]);
     setCurrentRoom(room.room_name);
-
     try {
       const token = localStorage.getItem('auth_token');
       const historyRes = await axios.get(`${apiUrl}/groups/${groupId}/messages`, {
@@ -304,7 +392,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     }
   };
 
-  // --- Add Reaction (merged) ---
+  // --- Add Reaction ---
   const handleAddReaction = (messageId: bigint, emoji: string) => {
     if (!socket || !isConnected) return;
     socket.emit('add_reaction', {
@@ -315,18 +403,18 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     });
   };
 
-  // --- File Upload (placeholder kept) ---
+  // --- File Upload ---
   const handleFileUploadClick = () => {
     console.log('File upload not implemented yet.');
   };
 
-  // --- Emoji Select (merged) ---
+  // --- Emoji Select ---
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage(prev => prev + emoji);
     setShowEmojiPicker(false);
   };
 
-  // --- Loading/Error renders (merged) ---
+  // --- Loading/Error renders ---
   if (isLoading && !groupDetails) {
     return (
       <div className="flex justify-center items-center h-[80vh]">
@@ -351,12 +439,11 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
   }
 
   // ============================================================
-  // ===              RENDER: USER-CREATED GROUP              ===
+  // ===               RENDER: USER-CREATED GROUP             ===
   // ============================================================
   if (!isAdminGroup) {
     return (
       <>
-        {/* --- SIMPLE UI (Unchanged) --- */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -382,7 +469,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
                 </p>
               </div>
             </div>
-
             <motion.button
               onClick={handleLeaveGroup}
               title="Leave Group"
@@ -393,7 +479,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               <LogOut className="w-5 h-5" />
             </motion.button>
           </div>
-
           {/* Chat Area */}
           <div className="flex-1 p-4 overflow-y-auto space-y-4">
             {error && (
@@ -403,7 +488,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               </div>
             )}
             {messages.map((msg) => {
-              const isSender = msg.user_id === currentUserId;
+              const isSender = msg.user_id === currentUser.id;
               return (
                 <motion.div
                   key={msg.id.toString()}
@@ -434,7 +519,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
             })}
             <div ref={chatEndRef} />
           </div>
-
           {/* Typing Indicator UI */}
           <div className="flex-shrink-0 h-6 px-4 pb-2">
             <AnimatePresence>
@@ -451,7 +535,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               )}
             </AnimatePresence>
           </div>
-
           {/* Input Form */}
           <form
             onSubmit={handleSendMessage}
@@ -489,14 +572,15 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     );
   }
 
-  // --- Render ADVANCED UI for Admin Group (fully merged) ---
+  // ============================================================
+  // ===               RENDER: ADMIN GROUP                   ===
+  // ============================================================
   return (
     <>
-      {/* --- NEW: Mobile Sidebar (Slide-in) --- */}
+      {/* --- Mobile Sidebar (Slide-in) --- */}
       <AnimatePresence>
         {isMobileSidebarOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -504,8 +588,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               className="fixed inset-0 bg-black/50 z-30 lg:hidden"
               onClick={() => setIsMobileSidebarOpen(false)}
             />
-
-            {/* Sidebar Slide */}
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
@@ -513,63 +595,14 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               className="fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-800 z-40"
             >
-              {/*
-                AdminSidebarContent is defined below and reused in desktop & mobile
-              */}
-              <div className="w-64 flex-shrink-0 bg-gray-50 dark:bg-gray-900 flex flex-col h-full">
-                {/* Header */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
-                    {groupDetails?.name}
-                  </h2>
-                </div>
-
-                {/* Room List */}
-                <div className="p-4 space-y-2 flex-1 overflow-y-auto">
-                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                    Rooms
-                  </h3>
-                  {roomList.map((room) => (
-                    <button
-                      key={room.id}
-                      onClick={() => switchRoom(room)}
-                      className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${
-                        currentRoom === room.room_name
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      <MessageSquare className="w-5 h-5" />
-                      <span className="font-medium capitalize">{room.room_name}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Online Users */}
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-                    Online ({onlineUsers.length})
-                  </h3>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {onlineUsers.length === 0 && (
-                      <span className="text-sm text-gray-500 dark:text-gray-400 p-2">
-                        Just you in here.
-                      </span>
-                    )}
-                    {onlineUsers.map((user) => (
-                      <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-semibold text-xs">
-                          {user.name.substring(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                          {user.name}
-                          {user.id === currentUserId && ' (You)'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <AdminSidebarContent 
+                groupDetails={groupDetails}
+                roomList={roomList}
+                currentRoom={currentRoom}
+                onlineUsers={onlineUsers}
+                currentUser={currentUser}
+                onSwitchRoom={switchRoom}
+              />
             </motion.div>
           </>
         )}
@@ -581,62 +614,16 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
         animate={{ opacity: 1 }}
         className="w-full max-w-6xl mx-auto h-[90vh] flex flex-row bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
       >
-        {/* --- Desktop Sidebar (reused content) --- */}
+        {/* --- Desktop Sidebar --- */}
         <div className="hidden lg:flex rounded-l-xl overflow-hidden border-r border-gray-200 dark:border-gray-700">
-          <div className="w-64 flex-shrink-0 bg-gray-50 dark:bg-gray-900 flex flex-col h-full">
-            {/* Header */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
-                {groupDetails?.name}
-              </h2>
-            </div>
-
-            {/* Room List */}
-            <div className="p-4 space-y-2 flex-1 overflow-y-auto">
-              <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                Rooms
-              </h3>
-              {roomList.map((room) => (
-                <button
-                  key={room.id}
-                  onClick={() => switchRoom(room)}
-                  className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${
-                    currentRoom === room.room_name
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <MessageSquare className="w-5 h-5" />
-                  <span className="font-medium capitalize">{room.room_name}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Online Users */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-              <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-                Online ({onlineUsers.length})
-              </h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {onlineUsers.length === 0 && (
-                  <span className="text-sm text-gray-500 dark:text-gray-400 p-2">
-                    Just you in here.
-                  </span>
-                )}
-                {onlineUsers.map((user) => (
-                  <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-semibold text-xs">
-                      {user.name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                      {user.name}
-                      {user.id === currentUserId && ' (You)'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <AdminSidebarContent 
+            groupDetails={groupDetails}
+            roomList={roomList}
+            currentRoom={currentRoom}
+            onlineUsers={onlineUsers}
+            currentUser={currentUser}
+            onSwitchRoom={switchRoom}
+          />
         </div>
 
         {/* === Main Chat Area === */}
@@ -664,23 +651,21 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               </motion.button>
 
               <div className="ml-4">
-
               {currentRoom === 'general' ? (
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize">
-                    {currentRoom} Group
-                  </h2>
-                ) : (
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize">
-                    {currentRoom} Students Group
-                  </h2>
-                )}
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize">
+                  {currentRoom} Group
+                </h2>
+              ) : (
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize">
+                  {currentRoom} Students Group
+                </h2>
+              )}
                 <p className="text-gray-600 dark:text-gray-400 mt-1 line-clamp-1">
                   {groupDetails?.description}
                 </p>
               </div>
             </div>
 
-            {/* Disabled logout for admin group */}
             <motion.button
               disabled={true}
               title="You cannot leave the admin group"
@@ -704,7 +689,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               </div>
             )}
             {messages.map((msg) => {
-              const isSender = msg.user_id === currentUserId;
+              const isSender = msg.user_id === currentUser.id;
               return (
                 <motion.div
                   key={msg.id.toString()}
@@ -743,8 +728,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
                         )}
                       </div>
                     )}
-
-                    {/* Reaction Button (on hover) */}
                     <button
                       onClick={() => handleAddReaction(msg.id, '👍')}
                       className="absolute -bottom-3 -right-3 opacity-0 group-hover:opacity-100 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-full p-1 shadow-md transition-all"
@@ -756,7 +739,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
                     <span className="text-xs text-gray-400 dark:text-gray-500">
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
-                    {/* Read Receipt */}
                     {isSender && (
                       <CheckCheck className={`w-4 h-4 ${
                         readReceipts[msg.id.toString()] && readReceipts[msg.id.toString()].size > 0
@@ -803,7 +785,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
                 type="text"
                 value={newMessage}
                 onChange={handleTypingChange}
-                placeholder={`Message in ${currentRoom}`}
+                placeholder={` Send message in ${currentRoom} group`}
                 className="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-full bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
@@ -819,15 +801,16 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               type="submit"
               disabled={!isConnected || !newMessage.trim()}
               className="p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg disabled:opacity-50"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ opacity: 1.1 }}
+              whileTap={{ opacity: 0.9 }}
             >
               <Send className="w-5 h-5" />
             </motion.button>
           </form>
         </div>
       </motion.div>
-        <ConfirmationModal
+
+      <ConfirmationModal
         isOpen={showLeaveModal}
         onClose={() => setShowLeaveModal(false)}
         onConfirm={isAdminGroup ? () => setShowLeaveModal(false) : executeLeave}
@@ -835,7 +818,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
         title={`Leave "${groupDetails?.name}"?`}
         message={isAdminGroup ? "You cannot leave the admin group." : "Are you sure you want to leave this group? You will have to re-join to see messages again."}
         confirmText={isAdminGroup ? "OK" : "Exit"}
-        />
+      />
     </>
   );
 };

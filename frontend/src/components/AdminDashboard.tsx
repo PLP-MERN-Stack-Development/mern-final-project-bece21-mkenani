@@ -1,10 +1,16 @@
-import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { 
-  Loader2, AlertTriangle, Users, UserCheck, Group, 
-  Send, CheckCircle // <-- NEW Icons
+import toast from 'react-hot-toast';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  AlertTriangle,
+  CheckCircle, // <-- Added Send and CheckCircle
+  Group,
+  Loader2,
+  Send,
+  UserCheck,
+  Users
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3036';
 
@@ -21,6 +27,7 @@ interface User {
   name: string;
   email: string;
   subscription_tier: 'free' | 'premium';
+  user_education_level: { level: 'primary' | 'secondary' | 'tertiary' } | null;
   created_at: string;
 }
 
@@ -58,52 +65,95 @@ const AdminDashboard: React.FC = () => {
   const [sendError, setSendError] = useState<string | null>(null);
 
   // Fetches stats AND users
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const token = localStorage.getItem('auth_token');
-        const headers = { headers: { Authorization: `Bearer ${token}` } };
-        
-        const [statsRes, usersRes] = await Promise.all([
-          axios.get(`${apiUrl}/admin/stats`, headers),
-          axios.get(`${apiUrl}/admin/users`, headers)
-        ]);
+    useEffect(() => {
+      const fetchDashboardData = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+          const token = localStorage.getItem('auth_token');
+          const headers = { headers: { Authorization: `Bearer ${token}` } };
+          
+          const [statsRes, usersRes] = await Promise.all([
+            axios.get(`${apiUrl}/admin/stats`, headers),
+            axios.get(`${apiUrl}/admin/users`, headers)
+          ]);
 
-        setStats(statsRes.data);
-        setUsers(usersRes.data);
+          setStats(statsRes.data);
+          setUsers(usersRes.data);
 
-      } catch (err: any) {
-        console.error('Failed to fetch admin data:', err);
-        setError(err.response?.data?.error || 'You do not have permission to view this page.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+        } catch (err: any) {
+          console.error('Failed to fetch admin data:', err);
+          setError(err.response?.data?.error || 'You do not have permission to view this page.');
+        } finally {
+          setIsLoading(false);
+        }
+      };
 
-    fetchDashboardData();
-  }, []);
+      fetchDashboardData();
+    }, []);
 
-  // Function to handle updating a user's tier
-  const handleUpdateTier = async (userId: string, newTier: 'free' | 'premium') => {
-    const originalUsers = users;
-    setUsers(prevUsers => 
-      prevUsers.map(u => u.id === userId ? { ...u, subscription_tier: newTier } : u)
+// Function to handle updating a user's tier
+const handleUpdateTier = async (userId: string, newTier: 'free' | 'premium') => {
+  const originalUsers = users;
+  setUsers(prevUsers =>
+    prevUsers.map(u =>
+      u.id === userId ? { ...u, subscription_tier: newTier } : u
+    )
+  );
+
+  try {
+    const token = localStorage.getItem('auth_token');
+    await axios.post(`${apiUrl}/admin/users/update-tier`,
+      { userId, newTier },
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    try {
-      const token = localStorage.getItem('auth_token');
-      await axios.post(`${apiUrl}/admin/users/update-tier`, 
-        { userId, newTier },
-        { headers: { Authorization: `Bearer ${token}` } }
+    toast.success(`User tier updated to ${newTier.toUpperCase()}`, {
+      icon: '🚀',
+    });
+  } catch (err: any) {
+    console.error('Failed to update tier:', err);
+    setUsers(originalUsers);
+    toast.error('Failed to update user tier. Please try again.');
+  }
+};
+
+// Function to handle updating education level
+    const handleUpdateEducationLevel = async (
+      userId: string,
+      newLevel: 'primary' | 'secondary' | 'tertiary'
+    ) => {
+      const originalUsers = users;
+
+      // Update UI immediately
+      setUsers(prevUsers =>
+        prevUsers.map(u =>
+          u.id === userId
+            ? {
+                ...u,
+                user_education_level: { level: newLevel },
+              }
+            : u
+        )
       );
-    } catch (err: any) {
-      console.error('Failed to update tier:', err);
-      setUsers(originalUsers);
-      alert('Failed to update user tier. Please try again.');
-    }
-  };
+
+      try {
+        const token = localStorage.getItem('auth_token');
+        await axios.post(
+          `${apiUrl}/admin/users/update-education-level`,
+          { userId, newLevel },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        toast.success(`Education level set to ${newLevel.toUpperCase()}`, {
+          icon: '🎓',
+        });
+      } catch (err: any) {
+        console.error('Failed to update education level:', err);
+        setUsers(originalUsers);
+        toast.error('Failed to update education level. Please try again.');
+      }
+    };
 
   // --- NEW --- Function to send an announcement
   const handleSendAnnouncement = async (e: React.FormEvent) => {
@@ -142,7 +192,7 @@ const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {error && (
+      {error && !isLoading && ( // Show error only if not loading
         <div className="flex flex-col items-center justify-center h-64 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <AlertTriangle className="w-12 h-12 text-red-500" />
           <h3 className="text-xl font-semibold text-red-700 dark:text-red-300 mt-4">Access Denied</h3>
@@ -184,6 +234,8 @@ const AdminDashboard: React.FC = () => {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Joined On</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Subscription</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Education Level</th>
+
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -210,6 +262,31 @@ const AdminDashboard: React.FC = () => {
                           >
                             <option value="free">Free</option>
                             <option value="premium">Premium</option>
+                          </select>
+                        </td>
+                        {/* Education Level Column */}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <select
+                            value={user.user_education_level?.level || ''} 
+                            onChange={(e) =>
+                              handleUpdateEducationLevel(
+                                user.id,
+                                e.target.value as 'primary' | 'secondary' | 'tertiary'
+                              )
+                            }
+                            className={`p-2 rounded-md border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                              user.user_education_level?.level === 'tertiary'
+                                ? 'text-purple-700 dark:text-purple-300'
+                                : user.user_education_level?.level === 'secondary'
+                                ? 'text-orange-700 dark:text-orange-300'
+                                : user.user_education_level?.level === 'primary'
+                                ? 'text-green-700 dark:text-green-300'
+                                : 'text-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            <option value="primary">Primary</option>
+                            <option value="secondary">Secondary</option>
+                            <option value="tertiary">Tertiary</option>
                           </select>
                         </td>
                       </motion.tr>
@@ -239,16 +316,16 @@ const AdminDashboard: React.FC = () => {
                   id="room-select"
                   value={announcementRoom}
                   onChange={(e) => setAnnouncementRoom(e.target.value)}
-                  className="w-full p-2 rounded-md border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-orange-500"
+                  className="w-full text-orange-500  p-2 rounded-md border  bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="general" className="text-orange-500">general</option>
-                  <option value="primary" className="text-orange-500">primary</option>
-                  <option value="secondary" className="text-orange-500">secondary</option>
-                  <option value="tertiary" className="text-orange-500">tertiary</option>
+                  <option value="primary" className="text-green-500">primary</option>
+                  <option value="secondary" className="text-blue-500">secondary</option>
+                  <option value="tertiary" className="text-purple-500">tertiary</option>
                 </select>
               </div>
               <div className="md:col-span-3">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" htmlFor="message-content">
+                <label className="block text-orange-500 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" htmlFor="message-content">
                   Message
                 </label>
                 <textarea
@@ -256,8 +333,8 @@ const AdminDashboard: React.FC = () => {
                   value={announcementMessage}
                   onChange={(e) => setAnnouncementMessage(e.target.value)}
                   rows={4}
-                  className="w-full p-2 rounded-md border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-orange-500"
-                  placeholder="Announce the selected room."
+                  className="w-full p-2 text-orange-500 rounded-md border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Announcement..."
                 />
               </div>
             </div>

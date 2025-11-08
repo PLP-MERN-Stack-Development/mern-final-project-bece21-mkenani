@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { motion } from 'framer-motion';
@@ -12,7 +11,9 @@ import {
   Target,
   TrendingUp,
   Trophy,
-  Zap
+  Zap,
+  BookCopy,
+  Lock     
 } from 'lucide-react';
 import React, { useContext, useEffect, useState } from 'react';
 import { ThemeContext } from '../App';
@@ -47,6 +48,8 @@ interface UserProfileProps {
   onBack: () => void;
 }
 
+type EducationLevel = 'primary' | 'secondary' | 'tertiary' | '';
+
 const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
   useContext(ThemeContext);
   const [userStats, setUserStats] = useState<UserStatistics | null>(null);
@@ -54,6 +57,12 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
   const [userInfo, setUserInfo] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // --- NEW State for Education Level ---
+  const [selectedLevel, setSelectedLevel] = useState<EducationLevel>('');
+  const [isSavingLevel, setIsSavingLevel] = useState(false);
+  const [saveLevelError, setSaveLevelError] = useState<string | null>(null);
+
   const { 
     subscribeUser, 
     isSubscribed, 
@@ -62,6 +71,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     isLoading: isPushLoading,
     error: pushError
   } = usePushNotifications();
+
   useEffect(() => {
     fetchUserData();
   }, []);
@@ -72,7 +82,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
       const token = localStorage.getItem('auth_token');
       if (!token) throw new Error('No authentication token found');
 
-      // Fetch user info
+      // Fetch user info (this now includes 'education_level')
       const userResponse = await axios.get(`${apiUrl}/auth/user`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -97,6 +107,36 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
       setError('Failed to load user data');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // --- NEW --- Function to save the user's education level
+  const handleSaveEducationLevel = async () => {
+    if (!selectedLevel) {
+      setSaveLevelError('Please select a level.');
+      return;
+    }
+    setIsSavingLevel(true);
+    setSaveLevelError(null);
+    try {
+      const token = localStorage.getItem('auth_token');
+      await axios.post(
+        `${apiUrl}/user/education-level`,
+        { level: selectedLevel },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Update UI instantly to show the locked level
+      setUserInfo((prev: any) => ({
+        ...prev,
+        education_level: selectedLevel
+      }));
+      
+    } catch (err: any) {
+      console.error('Failed to save level:', err);
+      setSaveLevelError(err.response?.data?.error || 'Failed to save level. You may have already set one.');
+    } finally {
+      setIsSavingLevel(false);
     }
   };
 
@@ -155,40 +195,42 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
       </div>
     );
   }
-const renderPushButton = () => {
-    if (!isSupported) {
-      return <p className="text-sm text-gray-500">Notifications not supported on this device.</p>;
-    }
-    if (permission === 'denied') {
-      return <p className="text-sm text-red-500">Notifications blocked. Please change in browser settings.</p>;
-    }
-    if (isSubscribed) {
+
+  const renderPushButton = () => {
+      if (!isSupported) {
+        return <p className="text-sm text-gray-500">Notifications not supported on this device.</p>;
+      }
+      if (permission === 'denied') {
+        return <p className="text-sm text-red-500">Notifications blocked. Please change in browser settings.</p>;
+      }
+      if (isSubscribed) {
+        return (
+          <div className="flex items-center gap-2 text-green-600">
+            <Bell size={18} />
+            <span>Notifications Enabled</span>
+          </div>
+        );
+      }
       return (
-        <div className="flex items-center gap-2 text-green-600">
-          <Bell size={18} />
-          <span>Notifications Enabled</span>
-        </div>
+        <motion.button
+          onClick={subscribeUser}
+          disabled={isPushLoading}
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow-md"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          {isPushLoading ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <>
+              <BellOff size={18} />
+              Enable Notifications
+            </>
+          )}
+        </motion.button>
       );
-    }
-    return (
-      <motion.button
-        onClick={subscribeUser}
-        disabled={isPushLoading}
-        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow-md"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        {isPushLoading ? (
-          <Loader2 className="animate-spin" />
-        ) : (
-          <>
-            <BellOff size={18} />
-            Enable Notifications
-          </>
-        )}
-      </motion.button>
-    );
-  };
+    };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -236,6 +278,7 @@ const renderPushButton = () => {
           </div>
         </div>
       </motion.div>
+
       {/* --- Notification Settings Section --- */}
       <motion.div
         className="p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 mb-6"
@@ -249,6 +292,66 @@ const renderPushButton = () => {
         {renderPushButton()}
         {pushError && <p className="text-sm text-red-500 mt-2">{pushError}</p>}
       </motion.div>
+
+      {/* --- NEW: Education Level Section --- */}
+      <motion.div
+        className="p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 mb-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+      >
+        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+          <BookCopy className="w-5 h-5 mr-2 text-purple-500" />
+          Education Level
+        </h3>
+        
+        {userInfo?.education_level ? (
+          // --- CASE 1: Level is already set (LOCKED) ---
+          <div>
+            <p className="text-lg font-medium text-gray-700 dark:text-gray-200 capitalize">
+              {userInfo.education_level}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-2">
+              <Lock className="w-4 h-4" />
+              Your education level is locked. please email admin  or leave a message in general group if you want to change it.
+            </p>
+          </div>
+        ) : (
+          // --- CASE 2: Level is NOT set (NULL) ---
+          <div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+              Set your education level to access the private admin group rooms. You can only set this once.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <select
+                value={selectedLevel}
+                onChange={(e) => setSelectedLevel(e.target.value as EducationLevel)}
+                className="flex-1 w-full p-2 text-orange-500 rounded-md border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="" className="text-orange-500">Select your level...</option>
+                <option value="primary" className="text-orange-500">Primary</option>
+                <option value="secondary" className="text-orange-500">Secondary</option>
+                <option value="tertiary" className="text-orange-500">Tertiary</option>
+              </select>
+              <motion.button
+                onClick={handleSaveEducationLevel}
+                disabled={isSavingLevel || !selectedLevel}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow-md disabled:opacity-50"
+                whileHover={{ opacity: !isSavingLevel ? 1 : 0.4 }}
+                whileTap={{ opacity: !isSavingLevel ? 1 : 0.4 }}
+              >
+                {isSavingLevel ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  "Save and Lock Level"
+                )}
+              </motion.button>
+            </div>
+            {saveLevelError && <p className="text-sm text-red-500 mt-2">{saveLevelError}</p>}
+          </div>
+        )}
+      </motion.div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Statistics Cards */}
         <div className="lg:col-span-2 space-y-4">

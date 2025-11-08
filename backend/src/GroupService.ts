@@ -206,19 +206,40 @@ export class GroupService {
     return data;
   }
 
-  // --- NEW --- Saves the user's education level choice
+  // --- MODIFIED --- Saves the user's education level choice (ONE-TIME ONLY)
   static async saveUserEducationLevel(userId: string, level: string, accessToken: string) {
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
+
+    // 1. Check if a level is already set
+    const existingData = await this.getUserEducationLevel(userId, accessToken);
+    if (existingData && existingData.level) {
+      throw new Error("Education level is already set and cannot be changed.");
+    }
+
+    // 2. If not, insert it
     const { data, error } = await supabase
       .from('user_education_level')
-      .upsert({ user_id: userId, level: level })
+      .insert({ user_id: userId, level: level }) // Use insert, not upsert
       .select()
       .single();
     if (error) throw error;
     return data;
   }
+
+  // --- NEW --- Admin-only function to update a user's level
+  static async updateUserEducationLevelAdmin(userId: string, level: string) {
+  // This function uses the admin client to bypass RLS and checks
+  const { data, error } = await supabaseAdmin
+    .from('user_education_level')
+    .upsert({ user_id: userId, level: level }, { onConflict: 'user_id' }) // Use upsert to create or update
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
 
   // --- NEW --- Adds a read receipt for a message
   static async addReadReceipt(messageId: number, userId: string, accessToken: string) {
@@ -226,13 +247,9 @@ export class GroupService {
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
     
-    // --- THIS IS THE FIX ---
-    // Use `upsert` to insert or do nothing if it already exists,
-    // based on the (message_id, user_id) unique constraint we created.
     const { error } = await supabase
       .from('group_read_receipts')
       .upsert({ message_id: messageId, user_id: userId });
-    // --- END FIX ---
 
     if (error) throw error;
     return { success: true };

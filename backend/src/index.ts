@@ -1,7 +1,9 @@
+import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import { createServer } from 'http';
+import cron from 'node-cron';
 import { Server } from 'socket.io';
 import { AIService } from './ai.service';
 import { AnalyticsService } from './AnalyticsService';
@@ -11,11 +13,8 @@ import { GroupService } from './GroupService';
 import { NotificationService } from './NotificationService';
 import { StudyPlanService } from './study-plan.service';
 import { UserService } from './UserService';
-import { createClient } from '@supabase/supabase-js';
-import cron from 'node-cron';
-
-// Import our admin middleware
 import { adminRequired, AuthenticatedRequest } from './middleware/admin.middleware';
+import { authRequired } from './middleware/auth.middleware'; 
 
 dotenv.config();
 const app = express();
@@ -35,7 +34,6 @@ const io = new Server(httpServer, {
   }
 });
 
-// Create a local Supabase Admin client for admin routes
 const supabaseUrl = 'https://tfdghduqsaniszkvzyhl.supabase.co';
 const supabaseAdminClient = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_KEY!);
 
@@ -47,14 +45,13 @@ app.post('/auth/signup', async (req: Request, res: Response) => {
     const { email, password, name } = req.body;
     const { user, session } = await AuthService.signUp(email, password, name);
     await AuthService.createUserProfile(user.id, email, name);
-    await AuthService.signOut(); // Force sign out so they have to log in
+    await AuthService.signOut();
     res.json({ user, session });
   } catch (err: any) {
     console.error('SignUp Error:', err.message);
     res.status(400).json({ error: err.message });
   }
 });
-
 app.post('/auth/signin', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -65,7 +62,6 @@ app.post('/auth/signin', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/auth/user', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -77,7 +73,6 @@ app.get('/auth/user', async (req: Request, res: Response) => {
     res.status(401).json({ error: err.message });
   }
 });
-
 app.post('/auth/signout', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -121,7 +116,6 @@ app.post('/study-plan/generate', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/study-plan/history/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
@@ -134,7 +128,6 @@ app.get('/study-plan/history/:userId', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/study-plan/:planId', async (req: Request, res: Response) => {
   try {
     const { planId } = req.params;
@@ -147,7 +140,6 @@ app.get('/study-plan/:planId', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/study-plan/user/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
@@ -176,7 +168,6 @@ app.post('/flashcard/generate', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/flashcards/review', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -189,7 +180,6 @@ app.get('/flashcards/review', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.post('/flashcards/review/:cardId', async (req: Request, res: Response) => {
   try {
     const { cardId } = req.params;
@@ -206,7 +196,7 @@ app.post('/flashcards/review/:cardId', async (req: Request, res: Response) => {
   }
 });
 
-/* ====================== USER ROUTES (MODIFIED) ====================== */
+/* ====================== USER ROUTES ====================== */
 
 app.get('/user/education-level', async (req: Request, res: Response) => {
   try {
@@ -220,7 +210,6 @@ app.get('/user/education-level', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.post('/user/education-level', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -235,7 +224,6 @@ app.post('/user/education-level', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/user/statistics/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
@@ -248,7 +236,6 @@ app.get('/user/statistics/:userId', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.post('/user/study-session', async (req: Request, res: Response) => {
   try {
     const { userId, subject, duration } = req.body;
@@ -261,7 +248,6 @@ app.post('/user/study-session', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/user/achievements', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -288,7 +274,6 @@ app.get('/analytics/subject-breakdown', async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/analytics/time-series', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -302,7 +287,7 @@ app.get('/analytics/time-series', async (req: Request, res: Response) => {
   }
 });
 
-/* ====================== GROUP ROUTES (MODIFIED) ====================== */
+/* ====================== GROUP ROUTES ====================== */
 
 app.get('/groups', async (req, res) => {
   try {
@@ -315,7 +300,6 @@ app.get('/groups', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/groups/me', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -328,7 +312,6 @@ app.get('/groups/me', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.post('/groups', async (req, res) => {
   try {
     const { name, description } = req.body;
@@ -342,7 +325,6 @@ app.post('/groups', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/groups/:groupId', async (req, res) => {
   try {
     const { groupId } = req.params;
@@ -355,7 +337,6 @@ app.get('/groups/:groupId', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/groups/:groupId/rooms', async (req, res) => {
   try {
     const { groupId } = req.params;
@@ -368,7 +349,6 @@ app.get('/groups/:groupId/rooms', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.post('/groups/:groupId/join', async (req, res) => {
   try {
     const { groupId } = req.params;
@@ -382,7 +362,6 @@ app.post('/groups/:groupId/join', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.delete('/groups/:groupId/leave', async (req, res) => {
   try {
     const { groupId } = req.params;
@@ -396,7 +375,6 @@ app.delete('/groups/:groupId/leave', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.get('/groups/:groupId/messages', async (req: Request, res: Response) => {
   try {
     const { groupId } = req.params;
@@ -423,7 +401,6 @@ app.get('/notifications/vapid-key', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.post('/notifications/subscribe', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -438,7 +415,6 @@ app.post('/notifications/subscribe', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 app.post('/notifications/test', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -459,20 +435,16 @@ app.get('/admin/stats', adminRequired, async (req: AuthenticatedRequest, res: Re
     const { count: userCount, error: userError } = await supabaseAdminClient
       .from('users')
       .select('id', { count: 'exact', head: true });
-
     const { count: premiumCount, error: premiumError } = await supabaseAdminClient
       .from('users')
       .select('id', { count: 'exact', head: true })
       .eq('subscription_tier', 'premium');
-
     const { count: groupCount, error: groupError } = await supabaseAdminClient
       .from('study_groups')
       .select('id', { count: 'exact', head: true });
-
     if (userError || premiumError || groupError) {
       throw new Error(userError?.message || premiumError?.message || groupError?.message);
     }
-
     res.json({
       totalUsers: userCount || 0,
       premiumUsers: premiumCount || 0,
@@ -483,14 +455,12 @@ app.get('/admin/stats', adminRequired, async (req: AuthenticatedRequest, res: Re
     res.status(500).json({ error: err.message });
   }
 });
-
 app.get('/admin/users', adminRequired, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { data, error } = await supabaseAdminClient
       .from('users')
-      .select('id, name, email, subscription_tier, created_at')
+      .select('id, name, email, subscription_tier, created_at, user_education_level (level)')
       .order('created_at', { ascending: false });
-    
     if (error) throw error;
     res.json(data || []);
   } catch (err: any) {
@@ -498,21 +468,18 @@ app.get('/admin/users', adminRequired, async (req: AuthenticatedRequest, res: Re
     res.status(500).json({ error: err.message });
   }
 });
-
 app.post('/admin/users/update-tier', adminRequired, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId, newTier } = req.body;
     if (!userId || !newTier) {
       return res.status(400).json({ error: 'userId and newTier are required' });
     }
-    
     const { data, error } = await supabaseAdminClient
       .from('users')
       .update({ subscription_tier: newTier, updated_at: new Date().toISOString() })
       .eq('id', userId)
-      .select('id, name, email, subscription_tier')
+      .select('id, name, email, subscription_tier, user_education_level (level)')
       .single();
-    
     if (error) throw error;
     res.json(data);
   } catch (err: any) {
@@ -521,61 +488,92 @@ app.post('/admin/users/update-tier', adminRequired, async (req: AuthenticatedReq
   }
 });
 
-// --- NEW --- Admin Announcement Route
+app.post('/admin/users/update-education-level', adminRequired, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, newLevel } = req.body;
+
+    if (!userId || !newLevel) {
+      return res.status(400).json({ error: 'Missing userId or newLevel' });
+    }
+
+    const data = await GroupService.updateUserEducationLevelAdmin(userId, newLevel);
+
+    res.json({
+      success: true,
+      message: 'Education level updated successfully',
+      data,
+    });
+  } catch (err: any) {
+    console.error('Admin Update Education Level Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 app.post('/admin/announce', adminRequired, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // 1. Get the admin user object from the middleware
     const adminUser = req.user;
     if (!adminUser) throw new Error('Admin user not found on request');
-
     const { roomName, content } = req.body;
     if (!roomName || !content) {
       return res.status(400).json({ error: 'roomName and content are required' });
     }
-
-    // 2. Find the 'GOAL MATE ADMIN' group ID
     const { data: adminGroup, error: groupError } = await supabaseAdminClient
       .from('study_groups')
       .select('id')
       .eq('is_admin_group', true)
       .single();
-    
     if (groupError || !adminGroup) {
       throw new Error('Admin group not found');
     }
-
-    // 3. Save the message to the database
     const savedMessage = await GroupService.saveMessage(
       adminUser.id,
       adminGroup.id,
       roomName,
       content,
-      null // fileUrl
+      null
     );
-
-    // 4. Prepare the message to broadcast over Sockets
     const broadcastMessage = {
       ...savedMessage,
       users: {
         name: adminUser.name,
-        avatar_url: null // We removed this
+        avatar_url: null
       }
     };
-
-    // 5. Broadcast the message to the correct room
     const roomSocketName = `${adminGroup.id}-${roomName}`;
     io.to(roomSocketName).emit('receive_message', broadcastMessage);
-
     res.status(201).json({ success: true, message: savedMessage });
-
   } catch (err: any) {
     console.error('Admin Announce Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
+/* ====================== VOICE API ROUTES ====================== */
 
-/* ====================== SOCKET.IO LOGIC ====================== */
+app.get('/api/voice/summary', authRequired, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+    const sessionCount = 2;
+    const unreadMessages = 3; 
+    const summary = `
+      Welcome back, ${user.name}.
+      You have ${sessionCount} study sessions scheduled for today.
+      You also have ${unreadMessages} new messages in your study groups.
+      What would you like to do?
+    `;
+    res.json({ spokenResponse: summary });
+  } catch (err: any) {
+    console.error('Voice API Summary Error:', err.message);
+    res.status(500).json({ error: 'Failed to generate voice summary' });
+  }
+});
+
+
+/* ====================== SOCKET.IO LOGIC (MODIFIED) ====================== */
 
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
@@ -612,7 +610,7 @@ io.on('connection', (socket) => {
         return {
           id: socketUser.id,
           name: socketUser.name,
-          avatar_url: null // --- FIX --- (was: socketUser.avatar_url)
+          avatar_url: null
         };
       });
       io.to(roomSocketName).emit('online_users_update', onlineUsers);
@@ -621,22 +619,27 @@ io.on('connection', (socket) => {
       console.error(`Error broadcasting online users for ${roomSocketName}:`, err.message);
     }
   };
-
   socket.on('join_room', async (payload: { groupId: string, roomName: string }) => {
     const { groupId, roomName } = payload;
     if (!groupId || !roomName) return;
+    const isEducationRoom = ['primary', 'secondary', 'tertiary'].includes(roomName);
+    if (!user.is_admin && isEducationRoom && user.education_level !== roomName) {
+      console.warn(`SECURITY: User ${user.id} DENIED access to room ${roomName}.`);
+      socket.emit('error_message', 'You do not have permission to join this room.');
+      return; 
+    }
     const roomSocketName = `${groupId}-${roomName}`;
     const oldRoom = (socket as any).currentRoom;
     if (oldRoom && oldRoom !== roomSocketName) {
       socket.leave(oldRoom);
       await broadcastOnlineUsers(oldRoom); 
     }
+    
     socket.join(roomSocketName);
     (socket as any).currentRoom = roomSocketName; 
     console.log(`User ${user.id} joined room ${roomSocketName}`);
     await broadcastOnlineUsers(roomSocketName);
   });
-
   socket.on('leave_room', async (payload: { groupId: string, roomName: string }) => {
     const { groupId, roomName } = payload;
     if (!groupId || !roomName) return;
@@ -646,7 +649,6 @@ io.on('connection', (socket) => {
     console.log(`User ${user.id} left room ${roomSocketName}`);
     await broadcastOnlineUsers(roomSocketName);
   });
-
   socket.on('send_message', async (payload: { 
     groupId: string, 
     roomName: string, 
@@ -655,6 +657,12 @@ io.on('connection', (socket) => {
   }) => {
     const { groupId, roomName, content, fileUrl } = payload;
     if (!groupId || !roomName || (!content && !fileUrl)) return;
+    const isEducationRoom = ['primary', 'secondary', 'tertiary'].includes(roomName);
+    if (!user.is_admin && isEducationRoom && user.education_level !== roomName) {
+      console.warn(`SECURITY: User ${user.id} DENIED message send to ${roomName}.`);
+      socket.emit('error_message', 'You do not have permission to post in this room.');
+      return; 
+    }
     const roomSocketName = `${groupId}-${roomName}`;
     
     try {
@@ -663,7 +671,7 @@ io.on('connection', (socket) => {
         ...savedMessage,
         users: {
           name: user.name,
-          avatar_url: null // --- FIX --- (was: (user as any).avatar_url)
+          avatar_url: null
         }
       };
       io.to(roomSocketName).emit('receive_message', broadcastMessage);
@@ -697,7 +705,6 @@ io.on('connection', (socket) => {
       socket.emit('error_message', 'Failed to send message.');
     }
   });
-
   socket.on('add_reaction', async (payload: {
     messageId: number, 
     emoji: string, 

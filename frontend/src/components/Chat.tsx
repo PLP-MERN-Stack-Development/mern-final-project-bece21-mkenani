@@ -467,7 +467,7 @@ const Chat: React.FC = () => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask your Study Buddy anything..."
+              placeholder="Ask your Goal Mate anything..."
               className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base placeholder-gray-500 dark:placeholder-gray-400 shadow-sm"
               disabled={isSending}
             />
