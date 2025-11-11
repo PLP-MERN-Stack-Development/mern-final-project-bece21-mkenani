@@ -85,6 +85,178 @@
 * **TypeScript**
 
 * **Tailwind CSS**
+  
+# Goal-Mate Project Structure
+
+```
+goal-mate/
+├── backend/
+│   ├── .env                      # Backend secrets and keys
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── src/
+│       ├── middleware/
+│       │   ├── admin.middleware.ts    # Gatekeeper for admin-only routes
+│       │   └── auth.middleware.ts     # Gatekeeper for all logged-in users
+│       ├── ai.service.ts
+│       ├── AnalyticsService.ts
+│       ├── auth.service.ts            # Handles sign-up, sign-in, and admin logic
+│       ├── FlashcardService.ts
+│       ├── GroupService.ts            # Core logic for groups, rooms, and messages
+│       ├── NotificationService.ts
+│       ├── StorageService.ts          # Handles file uploads to Supabase
+│       ├── study-plan.service.ts
+│       ├── UserService.ts
+│       └── index.ts                   # Main Express server and Socket.io hub
+│
+└── frontend/
+    ├── .env.local                     # Frontend environment variables
+    ├── package.json
+    ├── index.html
+    └── src/
+        ├── assets/
+        ├── components/
+        │   ├── AdminDashboard.tsx     # Admin UI
+        │   ├── AuthForm.tsx
+        │   ├── Chat.tsx               # AI Chatbot UI
+        │   ├── GroupChat.tsx          # Main group chat component
+        │   ├── Navbar.tsx
+        │   ├── StudyGroups.tsx        # The group lobby
+        │   ├── UserProfile.tsx
+        │   └── ... (other components)
+        ├── contexts/
+        │   └── SocketContext.tsx      # Manages the global Socket.io connection
+        ├── hooks/
+        │   └── usePushNotifications.ts
+        ├── App.tsx                    # Main app router and state
+        └── main.tsx
+```
+
+## Getting Started: How to Run Locally
+
+To clone and run this project, you'll need to set up both the backend server and the frontend client.
+
+### Prerequisites
+
+* Node.js (v18 or later)
+
+* npm
+
+* A Supabase account (you will need a Project URL, anon key, and service key)
+
+* A Google AI Studio API Key (for Gemini)
+
+
+### 1. Backend Setup (`/backend`)
+
+
+1.  **Clone the repository:**
+
+    ```bash
+    git clone [https://github.com/your-username/goal-mate.git](https://github.com/your-username/goal-mate.git)
+    cd goal-mate/backend
+    ```
+
+2.  **Install dependencies:**
+
+    ```bash
+    npm install
+    ```
+
+3.  **Create your environment file:**
+
+    Create a file named `.env` in the `/backend` directory and add your secret keys.
+
+    ```env
+    # Port for the server
+    PORT=3036
+
+    # Supabase Keys
+
+    SUPABASE_URL=https://<your-project-id>.supabase.co
+
+    SUPABASE_KEY=<your-project-anon-key>
+
+    SUPABASE_SERVICE_KEY=<your-project-service-role-key>
+
+    # Google Gemini Key
+
+    GEMINI_API_KEY=<your-gemini-api-key>
+
+    # VAPID Keys for Push Notifications
+
+    # Generate these using `npx web-push generate-vapid-keys`
+
+    VAPID_PUBLIC_KEY=<your-vapid-public-key>
+
+    VAPID_PRIVATE_KEY=<your-vapid-private-key>
+
+    VAPID_SUBJECT=mailto:your-email@example.com
+    ```
+
+4.  **Set your Admin ID:**
+
+    In `backend/src/auth.service.ts`, you **must** change the `ADMIN_USER_ID` constant to match your own user ID after you sign up.
+
+    ```typescript
+    // src/auth.service.ts
+    const ADMIN_USER_ID = 'your-supabase-user-id'; // 
+    ```
+
+5.  **Run the backend server:**
+
+    ```bash
+    npm run dev
+    ```
+
+    Your server will be running at `http://localhost:3036`.
+
+### 2. Frontend Setup (`/frontend`)
+
+1.  **Navigate to the frontend directory** in a new terminal:
+    ```bash
+    cd ../frontend
+    ```
+
+2.  **Install dependencies:**
+
+    ```bash
+    npm install
+    ```
+
+3.  **Create your environment file:**
+
+    Create a file named `.env.local` in the `/frontend` directory.
+
+    ```env
+    # The URL of your backend server
+
+    VITE_API_URL=http://localhost:3036
+
+    # Your Supabase public keys (for auth client)
+
+    VITE_SUPABASE_URL=https://<your-project-id>.supabase.co
+
+    VITE_SUPABASE_KEY=<your-project-anon-key>
+
+    # Your VAPID public key (must match the backend)
+
+    VITE_VAPID_PUBLIC_KEY=<your-vapid-public-key>
+    ```
+
+4.  **Run the frontend client:**
+
+    ```bash
+    npm run dev
+    ```
+    Your React app will open at `http://localhost:5173`.
+
+### 3. Supabase Database & Storage Setup
+
+This project will not run without the correct database schema and storage.
+
+1.  **Database:** You must go to the Supabase SQL Editor and create the tables and RLS policies required for the app (e.g., `users`, `study_groups`, `group_members`, `group_messages`, `group_rooms`, `user_education_level`, etc.).
+  
 
 
 
