@@ -282,10 +282,76 @@ To clone and run this project, you'll need to set up both the backend server and
 This project will not run without the correct database schema and storage.
 
 1.  **Database:** You must go to the Supabase SQL Editor and create the tables and RLS policies required for the app (e.g., `users`, `study_groups`, `group_members`, `group_messages`, `group_rooms`, `user_education_level`, etc.).
-  
+
+ ## Database Schema
+
+This project relies on several key tables within your Supabase (PostgreSQL) database.
+
+### `users` (Public)
+
+Stores public-facing user data. RLS is enabled.
+
+| Column | Type | Notes |
+| :--- | :--- | :--- |
+| `id` | `uuid` | **Primary Key**. Matches `auth.users.id`. |
+| `name` | `text` | User's display name. |
+| `email` | `text` | User's email. |
+| `subscription_tier`| `text` | `free` (default) or `premium`. |
+| `created_at` | `timestamptz` | |
+
+### `user_education_level` (Public)
+
+Stores the user's *one-time* education level choice. RLS is enabled.
+
+| Column | Type | Notes |
+| :--- | :--- | :--- |
+| `user_id` | `uuid` | **Primary Key / Foreign Key** to `users.id`. |
+| `level` | `text` | `primary`, `secondary`, or `tertiary`. |
+| `created_at` | `timestamptz` | |
 
 
+### `study_groups` (Public)
 
+Stores all available study groups.
+| Column | Type | Notes |
+| :--- | :--- | :--- |
+| `id` | `uuid` | **Primary Key**. |
+| `name` | `text` | Name of the group. |
+| `description` | `text` | |
+| `is_admin_group`| `boolean` | `true` only for the "Goal Mate Admin" group. |
+| `created_by` | `uuid` | **Foreign Key** to `users.id`. |
+
+
+### `group_rooms` (Public)
+
+Defines the chat rooms *within* a group.
+| Column | Type | Notes |
+| :--- | :--- | :--- |
+| `id` | `uuid` | **Primary Key**. |
+| `group_id` | `uuid` | **Foreign Key** to `study_groups.id`. |
+| `room_name` | `text` | e.g., "general", "primary", "secondary". |
+
+
+### `group_members` (Public)
+A "join table" that links users to the groups they are in.
+| Column | Type | Notes |
+| :--- | :--- | :--- |
+| `id` | `bigint` | **Primary Key**. |
+| `user_id` | `uuid` | **Foreign Key** to `users.id`. |
+| `group_id` | `uuid` | **Foreign Key** to `study_groups.id`. |
+
+
+### `group_messages` (Public)
+Stores every message sent in every room.
+| Column | Type | Notes |
+| :--- | :--- | :--- |
+| `id` | `bigint` | **Primary Key**. |
+| `group_id` | `uuid` | **Foreign Key** to `study_groups.id`. |
+| `user_id` | `uuid` | **Foreign Key** to `users.id`. |
+| `room_name` | `text` | **Required.** e.g., "general". |
+| `content` | `text` | The text message. (Not-null, use `''` for files). |
+| `file_url` | `text` | **Nullable.** Public URL from Supabase Storage. |
+| `reactions` | `jsonb` | Stores emoji reactions, e.g., `{"👍": ["user_id_1"]}`. |
 ### `study_plans` (Public)
 
 Stores the AI-generated study plans for each user.
