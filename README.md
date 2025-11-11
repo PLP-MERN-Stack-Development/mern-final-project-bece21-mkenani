@@ -38,9 +38,9 @@
 
     * **File Uploads:** Users can upload images, PDFs, and text files directly to the chat, securely stored in Supabase Storage.**
 
-   * **AI Chatbot:** An integrated chatbot (powered by Google's Gemini) to answer questions and assist with learning.  
+* **AI Chatbot:** An integrated chatbot (powered by Google's Gemini) to answer questions and assist with learning.  
 
-   * **Admin Dashboard:**
+* **Admin Dashboard:**
 
     * **App Statistics:** A private, secure dashboard showing total users, premium users, and total groups.
 
