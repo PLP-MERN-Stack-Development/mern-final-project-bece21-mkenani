@@ -24,7 +24,7 @@
 
 * **Users are allowed to set their education level only once.** 
 
-* **Any future changes can **only be made by an admin** through the Admin Dashboard.  
+* Any future changes can **only be made by an admin** through the Admin Dashboard.  
 
 * **This restriction is designed to **enhance security** and **maintain group integrity**across the platform.**
 
