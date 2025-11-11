@@ -18,9 +18,9 @@
 
      * **Each user has access to only two groups:**
 
-      - **General Group** — open to everyone.
+       - **General Group** — open to everyone.
 
-      - **Education-Level Group** (*Primary*, *Secondary*, or *Tertiary*) — assigned based on the user’s selected education level  
+       - **Education-Level Group** (*Primary*, *Secondary*, or *Tertiary*) — assigned based on the user’s selected education level  
 
     * **Users are allowed to set their education level only once.** 
 
