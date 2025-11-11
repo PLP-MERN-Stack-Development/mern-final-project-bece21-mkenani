@@ -12,35 +12,35 @@
 * **Advanced Group Chat:**
 
 
-* **This is where users connect and engage — primarily in general groups.**
+     * **This is where users connect and engage — primarily in general groups.**
 
-* **All users can ask questions, share ideas, and get clarification from others.**
+     * **All users can ask questions, share ideas, and get clarification from others.**
 
-* **Each user has access to only two groups:**
+     * **Each user has access to only two groups:**
 
-- **General Group** — open to everyone.
+      - **General Group** — open to everyone.
 
-- **Education-Level Group** (*Primary*, *Secondary*, or *Tertiary*) — assigned based on the user’s selected education level  
+      - **Education-Level Group** (*Primary*, *Secondary*, or *Tertiary*) — assigned based on the user’s selected education level  
 
-* **Users are allowed to set their education level only once.** 
+    * **Users are allowed to set their education level only once.** 
 
-* Any future changes can **only be made by an admin** through the Admin Dashboard.  
+    * Any future changes can **only be made by an admin** through the Admin Dashboard.  
 
-* **This restriction is designed to **enhance security** and **maintain group integrity**across the platform.**
+    * **This restriction is designed to **enhance security** and **maintain group integrity**across the platform.**
 
- * **Real-time Communication:** Built with Socket.io for instant messaging.
+    * **Real-time Communication:** Built with Socket.io for instant messaging.
 
- * **Secure Rooms:** Features a main "general" room and three education-level-locked rooms (Primary, Secondary, Tertiary).
+    * **Secure Rooms:** Features a main "general" room and three education-level-locked rooms (Primary, Secondary, Tertiary).
 
- * **User Security:** Backend logic prevents users from joining or posting in rooms that don't match their **one-time-set** education level.
+    * **User Security:** Backend logic prevents users from joining or posting in rooms that don't match their **one-time-set** education level.
 
- * **Rich Features:** Includes typing indicators, read receipts, emoji reactions, and a list of online users.
+    * **Rich Features:** Includes typing indicators, read receipts, emoji reactions, and a list of online users.
 
-* **File Uploads:** Users can upload images, PDFs, and text files directly to the chat, securely stored in Supabase Storage.**
+    * **File Uploads:** Users can upload images, PDFs, and text files directly to the chat, securely stored in Supabase Storage.**
 
-* **AI Chatbot:** An integrated chatbot (powered by Google's Gemini) to answer questions and assist with learning.  
+   * **AI Chatbot:** An integrated chatbot (powered by Google's Gemini) to answer questions and assist with learning.  
 
-* **Admin Dashboard:**
+   * **Admin Dashboard:**
 
     * **App Statistics:** A private, secure dashboard showing total users, premium users, and total groups.
 
