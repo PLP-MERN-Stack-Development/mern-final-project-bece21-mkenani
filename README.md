@@ -14,19 +14,19 @@
 
 * **This is where users connect and engage — primarily in general groups.**
 
-* **All users can ask questions, share ideas, and get clarification from others.  
+* **All users can ask questions, share ideas, and get clarification from others.**
 
-* **Each user has access to only two groups:
+* **Each user has access to only two groups:**
 
-- **General Group** — open to everyone  
+- **General Group** — open to everyone.**
 
 - **Education-Level Group** (*Primary*, *Secondary*, or *Tertiary*) — assigned based on the user’s selected education level  
 
-* **Users are allowed to set their education level only once.  
+* **Users are allowed to set their education level only once.** 
 
 * **Any future changes can **only be made by an admin** through the Admin Dashboard.  
 
-* **This restriction is designed to **enhance security** and **maintain group integrity** across the platform.
+* **This restriction is designed to **enhance security** and **maintain group integrity**across the platform.**
 
  * **Real-time Communication:** Built with Socket.io for instant messaging.
 
