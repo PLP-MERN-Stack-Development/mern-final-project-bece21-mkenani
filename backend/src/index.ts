@@ -34,11 +34,10 @@ app.use(express.json());
 /* ====================== SOCKET.IO SETUP ====================== */
 const io = new Server(httpServer, {
   cors: {
-    origin:process.env.ALLOWED_ORIGINS!,
+    origin: process.env.ALLOWED_ORIGINS!,
     methods: ["GET", "POST"],
   },
 });
-
 
 const supabaseAdminClient = createClient(
   process.env.SUPABASE_URL!,
@@ -55,7 +54,6 @@ app.post("/auth/signup", async (req: Request, res: Response) => {
     await AuthService.signOut();
     res.json({ user, session });
   } catch (err: any) {
-    console.error("SignUp Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -65,7 +63,6 @@ app.post("/auth/signin", async (req: Request, res: Response) => {
     const { user, session } = await AuthService.signIn(email, password);
     res.json({ user, session });
   } catch (err: any) {
-    console.error("SignIn Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -76,7 +73,6 @@ app.get("/auth/user", async (req: Request, res: Response) => {
     const user = await AuthService.getUser(token);
     res.json({ user });
   } catch (err: any) {
-    console.error("Get User Error:", err.message);
     res.status(401).json({ error: err.message });
   }
 });
@@ -87,7 +83,6 @@ app.post("/auth/signout", async (req: Request, res: Response) => {
     await AuthService.signOut();
     res.json({ message: "Signed out successfully" });
   } catch (err: any) {
-    console.error("Signout Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -103,7 +98,6 @@ app.post("/ai/generate", async (req, res) => {
     const reply = await AIService.generateResponse(userId, message, token);
     res.json({ reply: reply });
   } catch (err: any) {
-    console.error("AI /generate Route Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -125,7 +119,6 @@ app.post("/study-plan/generate", async (req, res) => {
     );
     res.status(201).json({ plan });
   } catch (err: any) {
-    console.error("Generate Plan Route Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -137,7 +130,6 @@ app.get("/study-plan/history/:userId", async (req: Request, res: Response) => {
     const plans = await StudyPlanService.getPlanHistory(userId, token);
     res.json({ plans });
   } catch (err: any) {
-    console.error("Study Plan History Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -149,7 +141,6 @@ app.get("/study-plan/:planId", async (req: Request, res: Response) => {
     const plan = await StudyPlanService.getPlanById(planId, token);
     res.json({ plan });
   } catch (err: any) {
-    console.error("Get Study Plan Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -161,7 +152,6 @@ app.get("/study-plan/user/:userId", async (req: Request, res: Response) => {
     const plans = await StudyPlanService.getUserPlans(userId, token);
     res.json({ plans });
   } catch (err: any) {
-    console.error("Get User Plans Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -183,7 +173,6 @@ app.post("/flashcard/generate", async (req: Request, res: Response) => {
     );
     res.json({ flashcards });
   } catch (err: any) {
-    console.error("Flashcard Generate Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -195,7 +184,6 @@ app.get("/flashcards/review", async (req: Request, res: Response) => {
     const reviewDeck = await FlashcardService.getReviewDeck(user.id, token);
     res.json({ reviewDeck });
   } catch (err: any) {
-    console.error("Get Review Deck Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -215,7 +203,6 @@ app.post("/flashcards/review/:cardId", async (req: Request, res: Response) => {
     );
     res.json({ updatedCard });
   } catch (err: any) {
-    console.error("Update Review Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -230,7 +217,6 @@ app.get("/user/education-level", async (req: Request, res: Response) => {
     const data = await GroupService.getUserEducationLevel(user.id, token);
     res.json({ level: data?.level || null });
   } catch (err: any) {
-    console.error("Get Education Level Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -244,7 +230,6 @@ app.post("/user/education-level", async (req: Request, res: Response) => {
     await GroupService.saveUserEducationLevel(user.id, level, token);
     res.json({ success: true, level: level });
   } catch (err: any) {
-    console.error("Save Education Level Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -256,7 +241,6 @@ app.get("/user/statistics/:userId", async (req: Request, res: Response) => {
     const statistics = await UserService.getUserStatistics(userId, token);
     res.json({ statistics });
   } catch (err: any) {
-    console.error("Get User Statistics Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -269,7 +253,6 @@ app.post("/user/study-session", async (req: Request, res: Response) => {
     await UserService.recordStudySession(userId, subject, duration, token);
     res.json({ message: "Study session recorded successfully" });
   } catch (err: any) {
-    console.error("Record Study Session Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -280,7 +263,6 @@ app.get("/user/achievements", async (req: Request, res: Response) => {
     const achievements = await UserService.getAchievements(token);
     res.json({ achievements });
   } catch (err: any) {
-    console.error("Get Achievements Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -295,7 +277,6 @@ app.get("/analytics/subject-breakdown", async (req: Request, res: Response) => {
     const data = await AnalyticsService.getSubjectBreakdown(user.id, token);
     res.json({ data });
   } catch (err: any) {
-    console.error("Get Subject Breakdown Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -307,7 +288,6 @@ app.get("/analytics/time-series", async (req: Request, res: Response) => {
     const data = await AnalyticsService.getTimeSeries(user.id, token);
     res.json({ data });
   } catch (err: any) {
-    console.error("Get Time Series Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -321,7 +301,6 @@ app.get("/groups", async (req, res) => {
     const groups = await GroupService.getAllGroups(token);
     res.json({ groups });
   } catch (err: any) {
-    console.error("Get Groups Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -333,7 +312,6 @@ app.get("/groups/me", async (req, res) => {
     const groupIds = await GroupService.getMyGroupIds(user.id, token);
     res.json({ groupIds });
   } catch (err: any) {
-    console.error("Get My Groups Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -351,7 +329,6 @@ app.post("/groups", async (req, res) => {
     );
     res.status(201).json({ group });
   } catch (err: any) {
-    console.error("Create Group Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -363,7 +340,6 @@ app.get("/groups/:groupId", async (req, res) => {
     const group = await GroupService.getGroupDetails(groupId, token);
     res.json({ group });
   } catch (err: any) {
-    console.error("Get Group Details Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -375,7 +351,6 @@ app.get("/groups/:groupId/rooms", async (req, res) => {
     const rooms = await GroupService.getGroupRooms(groupId, token);
     res.json({ rooms });
   } catch (err: any) {
-    console.error("Get Group Rooms Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -388,7 +363,6 @@ app.post("/groups/:groupId/join", async (req, res) => {
     await GroupService.joinGroup(user.id, groupId, token);
     res.json({ message: "Joined group successfully" });
   } catch (err: any) {
-    console.error("Join Group Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -401,7 +375,6 @@ app.delete("/groups/:groupId/leave", async (req, res) => {
     await GroupService.leaveGroup(user.id, groupId, token);
     res.json({ message: "Left group successfully" });
   } catch (err: any) {
-    console.error("Leave Group Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -419,7 +392,6 @@ app.get("/groups/:groupId/messages", async (req: Request, res: Response) => {
     );
     res.json({ messages });
   } catch (err: any) {
-    console.error("Get Messages Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -431,7 +403,6 @@ app.get("/notifications/vapid-key", (req, res) => {
     const key = NotificationService.getVapidKey();
     res.json({ publicKey: key });
   } catch (err: any) {
-    console.error("Get Vapid Key Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -445,7 +416,6 @@ app.post("/notifications/subscribe", async (req, res) => {
     await NotificationService.saveSubscription(user.id, subscription, token);
     res.status(201).json({ message: "Subscription saved." });
   } catch (err: any) {
-    console.error("Subscribe Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -462,7 +432,6 @@ app.post("/notifications/test", async (req, res) => {
     );
     res.json({ message: "Test notification sent." });
   } catch (err: any) {
-    console.error("Test Notification Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -494,7 +463,6 @@ app.post(
       const publicUrl = await StorageService.uploadFile(file, user.id);
       res.json({ success: true, url: publicUrl });
     } catch (err: any) {
-      console.error("File Upload Error:", err.message);
       res.status(500).json({ error: err.message });
     }
   }
@@ -528,7 +496,6 @@ app.get(
         totalGroups: groupCount || 0,
       });
     } catch (err: any) {
-      console.error("Admin Stats Error:", err.message);
       res.status(500).json({ error: err.message });
     }
   }
@@ -547,7 +514,6 @@ app.get(
       if (error) throw error;
       res.json(data || []);
     } catch (err: any) {
-      console.error("Admin Get Users Error:", err.message);
       res.status(500).json({ error: err.message });
     }
   }
@@ -577,7 +543,6 @@ app.post(
       if (error) throw error;
       res.json(data);
     } catch (err: any) {
-      console.error("Admin Update Tier Error:", err.message);
       res.status(500).json({ error: err.message });
     }
   }
@@ -605,7 +570,6 @@ app.post(
         data,
       });
     } catch (err: any) {
-      console.error("Admin Update Education Level Error:", err.message);
       res.status(500).json({ error: err.message });
     }
   }
@@ -650,7 +614,6 @@ app.post(
       io.to(roomSocketName).emit("receive_message", broadcastMessage);
       res.status(201).json({ success: true, message: savedMessage });
     } catch (err: any) {
-      console.error("Admin Announce Error:", err.message);
       res.status(500).json({ error: err.message });
     }
   }
@@ -677,7 +640,6 @@ app.get(
     `;
       res.json({ spokenResponse: summary });
     } catch (err: any) {
-      console.error("Voice API Summary Error:", err.message);
       res.status(500).json({ error: "Failed to generate voice summary" });
     }
   }
@@ -703,9 +665,6 @@ io.on("connection", (socket) => {
   const user = (socket as any).user;
 
   if (!user) {
-    console.error(
-      "Socket connected, but user object is missing. Disconnecting."
-    );
     socket.disconnect();
     return;
   }
@@ -724,15 +683,7 @@ io.on("connection", (socket) => {
         };
       });
       io.to(roomSocketName).emit("online_users_update", onlineUsers);
-      console.log(
-        `Broadcasted online users for ${roomSocketName}: ${onlineUsers.length} users`
-      );
-    } catch (err: any) {
-      console.error(
-        `Error broadcasting online users for ${roomSocketName}:`,
-        err.message
-      );
-    }
+    } catch (err: any) {}
   };
   socket.on(
     "join_room",
@@ -747,9 +698,6 @@ io.on("connection", (socket) => {
         isEducationRoom &&
         user.education_level !== roomName
       ) {
-        console.warn(
-          `SECURITY: User ${user.id} DENIED access to room ${roomName}.`
-        );
         socket.emit(
           "error_message",
           "You do not have permission to join this room."
@@ -765,7 +713,6 @@ io.on("connection", (socket) => {
 
       socket.join(roomSocketName);
       (socket as any).currentRoom = roomSocketName;
-      console.log(`User ${user.id} joined room ${roomSocketName}`);
       await broadcastOnlineUsers(roomSocketName);
     }
   );
@@ -777,7 +724,6 @@ io.on("connection", (socket) => {
       const roomSocketName = `${groupId}-${roomName}`;
       socket.leave(roomSocketName);
       (socket as any).currentRoom = null;
-      console.log(`User ${user.id} left room ${roomSocketName}`);
       await broadcastOnlineUsers(roomSocketName);
     }
   );
@@ -799,9 +745,6 @@ io.on("connection", (socket) => {
         isEducationRoom &&
         user.education_level !== roomName
       ) {
-        console.warn(
-          `SECURITY: User ${user.id} DENIED message send to ${roomName}.`
-        );
         socket.emit(
           "error_message",
           "You do not have permission to post in this room."
@@ -836,9 +779,6 @@ io.on("connection", (socket) => {
           );
 
           if (offlineUserIds.length > 0) {
-            console.log(
-              `Sending push notifications to ${offlineUserIds.length} offline members of room ${roomSocketName}.`
-            );
             const messageSnippet = content
               ? content.length > 100
                 ? content.substring(0, 97) + "..."
@@ -854,14 +794,8 @@ io.on("connection", (socket) => {
             );
             await Promise.allSettled(notificationTasks);
           }
-        } catch (pushError: any) {
-          console.error(
-            "Socket send_push_notification error:",
-            pushError.message
-          );
-        }
+        } catch (pushError: any) {}
       } catch (err: any) {
-        console.error("Socket send_message error:", err.message);
         socket.emit("error_message", "Failed to send message.");
       }
     }
@@ -885,7 +819,6 @@ io.on("connection", (socket) => {
         const roomSocketName = `${groupId}-${roomName}`;
         io.to(roomSocketName).emit("reaction_update", updatedMessage);
       } catch (err: any) {
-        console.error("Socket add_reaction error:", err.message);
         socket.emit("error_message", "Failed to add reaction.");
       }
     }
@@ -908,9 +841,7 @@ io.on("connection", (socket) => {
           messageId: messageId,
           userId: user.id,
         });
-      } catch (err: any) {
-        console.error("Socket message_read error:", err.message);
-      }
+      } catch (err: any) {}
     }
   );
 
@@ -935,7 +866,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", async () => {
-    console.log(`User disconnected: ${user.email}`);
     const roomSocketName = (socket as any).currentRoom;
     if (roomSocketName) {
       await broadcastOnlineUsers(roomSocketName);
@@ -945,19 +875,13 @@ io.on("connection", (socket) => {
 
 /* ====================== CRON JOBS ====================== */
 
-console.log("Setting up cron jobs...");
 cron.schedule("0 * * * *", () => {
-  console.log("CronJob: Running hourly task for study plan reminders...");
   StudyPlanService.sendUpcomingSessionNotifications();
 });
 cron.schedule("0 9 * * *", () => {
-  console.log("CronJob: Running daily task for flashcard reminders...");
   FlashcardService.sendReviewNotifications();
 });
 
 /* ====================== START SERVER ====================== */
 
-console.log("Cron jobs scheduled.");
-httpServer.listen(port, () => {
-  console.log(` Server & Socket.io running on port ${port}`);
-});
+httpServer.listen(port, () => {});
