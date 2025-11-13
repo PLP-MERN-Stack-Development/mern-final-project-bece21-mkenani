@@ -58,7 +58,6 @@ export class UserService {
       .single();
 
     if (error || !statistics) {
-      console.log("No stats found, creating new entry.");
       const { data: newStats, error: createError } = await supabaseAuth
         .from("user_statistics")
         .insert([{ user_id: userId, total_sessions: 0 }])

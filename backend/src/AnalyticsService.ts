@@ -23,7 +23,6 @@ export class AnalyticsService {
     });
 
     if (error) {
-      console.error("Subject Breakdown Error:", error.message);
       throw new Error(`Failed to get subject breakdown: ${error.message}`);
     }
 
@@ -44,7 +43,6 @@ export class AnalyticsService {
     });
 
     if (error) {
-      console.error("Time Series Error:", error.message);
       throw new Error(`Failed to get time series: ${error.message}`);
     }
 

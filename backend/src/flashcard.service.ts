@@ -38,11 +38,9 @@ export class FlashcardService {
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        console.error("User authentication error:", userError);
         throw new Error("User not authenticated");
       }
       const authenticatedUserId = user.id;
-      console.log("Authenticated user ID:", authenticatedUserId);
       const flashcards = await this.generateFlashcardsWithAI(
         authenticatedUserId,
         subject,
@@ -54,7 +52,6 @@ export class FlashcardService {
         .select();
 
       if (error) {
-        console.error("Store Flashcards Error:", error);
         if (error.code === "23503") {
           throw new Error(
             "User profile not found. Please complete your profile setup."
@@ -63,15 +60,8 @@ export class FlashcardService {
 
         throw new Error(`Failed to store flashcards: ${error.message}`);
       }
-
-      console.log("Generated Flashcards:", {
-        userId: authenticatedUserId,
-        count,
-        subject,
-      });
       return data || flashcards;
     } catch (err: any) {
-      console.error("Flashcard Generate Error:", err.message);
       throw new Error(`Failed to generate flashcards: ${err.message}`);
     }
   }
@@ -82,8 +72,6 @@ export class FlashcardService {
     count: number
   ): Promise<any[]> {
     try {
-      console.log("Generating flashcards with AI for subject:", subject);
-
       const model = genAI.getGenerativeModel({
         model: "gemini-2.0-flash",
         generationConfig: {
@@ -112,7 +100,6 @@ export class FlashcardService {
           flashcardsData = JSON.parse(response);
         }
       } catch (parseError) {
-        console.error("Failed to parse AI response as JSON:", response);
         return this.generateMockFlashcards(userId, subject, count);
       }
       return flashcardsData.map((card: any, index: number) => ({
@@ -128,7 +115,6 @@ export class FlashcardService {
         review_count: 0,
       }));
     } catch (error: any) {
-      console.error("AI Flashcard Generation Error:", error.message);
       return this.generateMockFlashcards(userId, subject, count);
     }
   }
@@ -155,10 +141,8 @@ export class FlashcardService {
       if (error) {
         throw new Error(`Failed to fetch review deck: ${error.message}`);
       }
-
       return data || [];
     } catch (err: any) {
-      console.error("Get Review Deck Error:", err.message);
       throw new Error(`Failed to fetch review deck: ${err.message}`);
     }
   }
@@ -232,7 +216,6 @@ export class FlashcardService {
 
       return updatedCard;
     } catch (err: any) {
-      console.error("Update Flashcard Review Error:", err.message);
       throw new Error(`Failed to update review: ${err.message}`);
     }
   }
@@ -243,7 +226,6 @@ export class FlashcardService {
     subject: string,
     count: number
   ): any[] {
-    console.log("Using mock flashcards as fallback");
     return Array.from({ length: count }, (_, index) => ({
       id: uuidv4(),
       user_id: userId,
@@ -265,12 +247,10 @@ export class FlashcardService {
       );
 
       if (error) {
-        console.error("CronJob Error (find flashcard users):", error.message);
         return;
       }
 
       if (!usersToNotify || usersToNotify.length === 0) {
-        console.log("CronJob: No users with flashcards due.");
         return;
       }
 
@@ -286,7 +266,7 @@ export class FlashcardService {
       );
       await Promise.all(notificationsToSend);
     } catch (err: any) {
-      console.error("CronJob: Unhandled flashcard error:", err.message);
+      
     }
   }
 }

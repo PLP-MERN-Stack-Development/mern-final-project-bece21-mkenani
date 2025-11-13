@@ -12,9 +12,7 @@ const supabaseAdmin = createClient(
 );
 
 if (!process.env.SUPABASE_SERVICE_KEY) {
-  console.error(
-    "CRITICAL ERROR: SUPABASE_SERVICE_KEY is not set in .env file (needed by GroupService)"
-  );
+
 }
 
 /*=== GROUP SERVICE ===*/
@@ -188,7 +186,7 @@ export class GroupService {
       .eq("group_id", groupId);
 
     if (error) {
-      console.error(`GetGroupMembers Error: ${error.message}`);
+
       return [];
     }
     return data.map((item) => item.user_id);

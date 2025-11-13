@@ -19,7 +19,6 @@ const supabaseAdmin = createClient(
 );
 
 if (!process.env.SUPABASE_SERVICE_KEY) {
-  console.error("CRITICAL ERROR: SUPABASE_SERVICE_KEY is not set in .env file");
 }
 
 /*=== AUTH SERVICE ===*/
@@ -30,7 +29,6 @@ export class AuthService {
       throw new Error("Email, password, and name are required for signup");
     }
     try {
-      console.log("Starting signup process:", { email, name });
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -39,12 +37,6 @@ export class AuthService {
 
       if (error) throw new Error(error.message);
       if (!data.user) throw new Error("No user returned from authentication");
-
-      console.log("Auth user created:", {
-        id: data.user.id,
-        email: data.user.email,
-      });
-
       await AuthService.ensureUserProfile(data.user.id, email, name);
 
       return {
@@ -57,13 +49,11 @@ export class AuthService {
         session: data.session?.access_token || null,
       };
     } catch (err: any) {
-      console.error("Signup failed:", err.message);
       throw err;
     }
   }
   /*=== SIGN IN ===*/
   static async signIn(email: string, password: string) {
-    console.log("Starting signin process:", { email });
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -71,11 +61,6 @@ export class AuthService {
 
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error("No user returned from authentication");
-
-    console.log("User signed in:", {
-      id: data.user.id,
-      email: data.user.email,
-    });
 
     await AuthService.ensureUserProfile(
       data.user.id,
@@ -117,10 +102,6 @@ export class AuthService {
       .single();
 
     if (combinedError) {
-      console.error(
-        "Error fetching user profile/education level:",
-        combinedError.message
-      );
       throw new Error(combinedError.message);
     }
 
@@ -149,7 +130,7 @@ export class AuthService {
         .single();
 
       if (existingUser) {
-        console.log("User profile already exists, skipping creation.");
+
         return existingUser;
       }
 
@@ -171,10 +152,8 @@ export class AuthService {
         throw new Error(error.message);
       }
 
-      console.log("User profile created in public.users:", data?.id);
       return data;
     } catch (err: any) {
-      console.error("Failed to create user profile:", err.message);
       throw err;
     }
   }
@@ -193,13 +172,10 @@ export class AuthService {
 
       if (fetchError && fetchError.code === "PGRST116") {
         await AuthService.createUserProfile(userId, email, name);
-      } else if (fetchError) {
-        console.error("Error ensuring profile:", fetchError);
       } else {
         await AuthService.createUserProfile(userId, email, name);
       }
     } catch (err: any) {
-      console.error("Critical error in ensureUserProfile:", err.message);
     }
   }
 

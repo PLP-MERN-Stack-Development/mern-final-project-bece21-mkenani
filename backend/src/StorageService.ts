@@ -34,7 +34,6 @@ export class StorageService {
       });
 
     if (uploadError) {
-      console.error('Supabase upload error:', uploadError.message);
       throw new Error('Failed to upload file to storage.');
     }
 
@@ -48,7 +47,6 @@ export class StorageService {
       throw new Error('Failed to get public URL for file.');
     }
     
-    console.log(`File uploaded: ${urlData.publicUrl}`);
     return urlData.publicUrl;
   }
 }

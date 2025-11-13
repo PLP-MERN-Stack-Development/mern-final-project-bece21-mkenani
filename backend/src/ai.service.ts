@@ -15,10 +15,6 @@ export class AIService {
     accessToken: string
   ): Promise<string> {
     try {
-      console.log(
-        "AI Key Loaded:",
-        process.env.GOOGLE_AI_API_KEY ? "[LOADED]" : "MISSING"
-      );
       const model = genAI.getGenerativeModel({
         model: "gemini-2.0-flash",
         generationConfig: {
@@ -52,9 +48,7 @@ export class AIService {
         .select("id, messages")
         .eq("user_id", userId)
         .single();
-
       if (error && error.code !== "PGRST116") {
-        console.error("Fetch Session Error:", error);
         throw new Error(`Failed to fetch session: ${error.message}`);
       }
 
@@ -71,7 +65,6 @@ export class AIService {
             `Failed to create AI chat session: ${sessionError.message}`
           );
         }
-        console.log("Created AI Session:", newSession);
         return response;
       }
 
@@ -91,14 +84,11 @@ export class AIService {
         .single();
 
       if (updateError) {
-        console.error("Update AI Session Error:", updateError);
         throw new Error(`Failed to store AI response: ${updateError.message}`);
       }
-      console.log("Updated AI Session:", updatedSession);
 
       return response;
     } catch (err: any) {
-      console.error("AI Generate Error:", err.message);
       if (
         err.message.includes("429") ||
         err.message.includes("quota") ||

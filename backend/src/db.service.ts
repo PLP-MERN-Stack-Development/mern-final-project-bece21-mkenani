@@ -6,9 +6,7 @@ dotenv.config();
 
 /*=== ENVIRONMENT VARIABLES CHECK ===*/
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-  console.error(
-    "Environment Error: Missing SUPABASE_URL or SUPABASE_SERVICE_KEY"
-  );
+  
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in .env");
 }
 
@@ -47,7 +45,7 @@ export async function createUserProfile(
   email: string,
   name?: string
 ): Promise<DbResponse<UserProfile>> {
-  console.log("Create User Profile Attempt:", { userId, email, name });
+
   const { data, error } = await supabase
     .from("users")
     .insert([{ id: userId, email, name, points: 0, streak: 0, subjects: [] }])
@@ -55,21 +53,12 @@ export async function createUserProfile(
     .single();
 
   if (error) {
-    console.error("Create User Profile Error:", {
-      message: error.message,
-      code: error.code,
-      details: error.details,
-    });
+
     return { error: error.message };
   }
   if (!data) {
-    console.error("Create User Profile No Data:", { userId, email });
+
     return { error: "Failed to create user profile" };
   }
-
-  console.log("Create User Profile Success:", {
-    userId: data.id,
-    email: data.email,
-  });
   return { data };
 }

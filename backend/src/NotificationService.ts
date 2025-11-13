@@ -17,16 +17,14 @@ const vapidPublicKey = process.env.VAPID_PUBLIC_KEY!;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY!;
 
 if (!vapidPublicKey || !vapidPrivateKey) {
-  console.error(
-    "CRITICAL ERROR: VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY are not set in .env"
-  );
+
 } else {
   webpush.setVapidDetails(
     "mailto:mphatsokenani0@gmail.com",
     vapidPublicKey,
     vapidPrivateKey
   );
-  console.log("Web-push configured.");
+
 }
 
 /*=== NOTIFICATION SERVICE ===*/
@@ -47,7 +45,7 @@ export class NotificationService {
     });
 
     if (error) {
-      console.error("Save Subscription Error:", error.message);
+
       throw new Error(`Failed to save subscription: ${error.message}`);
     }
     return data;
@@ -76,9 +74,7 @@ export class NotificationService {
     }
 
     if (userProfile.subscription_tier !== "premium") {
-      console.log(
-        `Notify: User ${userId} is 'free' tier. Notification not sent.`
-      );
+
       return;
     }
 
@@ -89,7 +85,7 @@ export class NotificationService {
       .eq("user_id", userId);
 
     if (subError) {
-      console.error("Notify Error: Get Subscriptions:", subError.message);
+  
       return;
     }
 
@@ -105,7 +101,6 @@ export class NotificationService {
       return webpush
         .sendNotification(sub.subscription_object, payload)
         .catch((err) => {
-          console.error(`Notification failed for ${userId}: ${err.message}`);
           if (err.statusCode === 410) {
             //--TO BE IMPLEMENTED: Delete this expired subscription---------
           }
@@ -113,7 +108,6 @@ export class NotificationService {
     });
 
     await Promise.all(sendPromises);
-    console.log(`Successfully sent 'premium' notification to ${userId}`);
   }
 
   /*=== GET VAPID PUBLIC KEY ===*/

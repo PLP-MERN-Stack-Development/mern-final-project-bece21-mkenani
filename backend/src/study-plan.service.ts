@@ -106,10 +106,8 @@ export class StudyPlanService {
         );
       }
 
-      console.log("Generated Study Plan:", plan.id);
       return data;
     } catch (err: any) {
-      console.error("Study Plan Generate Error:", err.message);
       throw new Error(`Failed to generate study plan: ${err.message}`);
     }
   }
@@ -131,7 +129,6 @@ export class StudyPlanService {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Get Plan History Error:", error);
         throw new Error(`Failed to fetch plan history: ${error.message}`);
       }
 
@@ -142,14 +139,8 @@ export class StudyPlanService {
         schedule_count: plan.schedule?.length || 0,
         created_at: plan.created_at,
       }));
-
-      console.log("Fetched Plan History:", {
-        userId,
-        count: planHistory.length,
-      });
       return planHistory;
     } catch (err: any) {
-      console.error("Get Plan History Error:", err.message);
       throw new Error(`Failed to fetch plan history: ${err.message}`);
     }
   }
@@ -171,18 +162,14 @@ export class StudyPlanService {
         .single();
 
       if (error) {
-        console.error("Get Plan By ID Error:", error);
         throw new Error(`Failed to fetch study plan: ${error.message}`);
       }
 
       if (!data) {
         throw new Error("Study plan not found");
       }
-
-      console.log("Fetched Study Plan:", { planId });
       return data;
     } catch (err: any) {
-      console.error("Get Plan By ID Error:", err.message);
       throw new Error(`Failed to fetch study plan: ${err.message}`);
     }
   }
@@ -204,14 +191,10 @@ export class StudyPlanService {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Get User Plans Error:", error);
         throw new Error(`Failed to fetch user plans: ${error.message}`);
       }
-
-      console.log("Fetched User Plans:", { userId, count: data?.length || 0 });
       return data || [];
     } catch (err: any) {
-      console.error("Get User Plans Error:", err.message);
       throw new Error(`Failed to fetch user plans: ${err.message}`);
     }
   }
@@ -219,7 +202,6 @@ export class StudyPlanService {
   /*==== CRON JOB FOR UPCOMING SESSIONS NOTIFICATIONS ====*/
   static async sendUpcomingSessionNotifications() {
     try {
-      console.log("CronJob: Checking for upcoming study sessions...");
       const now = new Date();
       /*=== 1. ONE HOUR AHEAD TIME WINDOW ===*/
       const inOneHour = new Date(now.getTime() + 65 * 60 * 1000);
@@ -233,16 +215,12 @@ export class StudyPlanService {
         .eq("notification_sent", false);
 
       if (error) {
-        console.error("CronJob Error (find sessions):", error.message);
         return;
       }
 
       if (!sessions || sessions.length === 0) {
-        console.log("CronJob: No upcoming sessions found.");
         return;
       }
-
-      console.log(`CronJob: Found ${sessions.length} sessions to notify.`);
 
       /*=== 2. SENDING NOFICATIONS ===*/
       const notificationsToSend = sessions.map((session) =>
@@ -264,12 +242,10 @@ export class StudyPlanService {
         .in("id", sessionIds);
 
       if (updateError) {
-        console.error("CronJob Error (update sent):", updateError.message);
       }
 
-      console.log("CronJob: Sent all notifications.");
     } catch (err: any) {
-      console.error("CronJob: Unhandled error:", err.message);
+      
     }
   }
 }
