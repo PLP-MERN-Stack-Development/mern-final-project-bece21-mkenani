@@ -34,14 +34,14 @@ app.use(express.json());
 /* ====================== SOCKET.IO SETUP ====================== */
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin:process.env.ALLOWED_ORIGINS!,
     methods: ["GET", "POST"],
   },
 });
 
-const supabaseUrl = "https://tfdghduqsaniszkvzyhl.supabase.co";
+
 const supabaseAdminClient = createClient(
-  supabaseUrl,
+  process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
 
