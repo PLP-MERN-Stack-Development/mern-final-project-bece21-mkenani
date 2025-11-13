@@ -20,6 +20,7 @@ import ConfirmationModal from "./ConfirmationModal";
 
 const apiUrl = import.meta.env.VITE_API_URL!;
 
+// --- INTERFACES ---
 interface ChatMessage {
   id: bigint;
   content: string;
@@ -214,12 +215,17 @@ const AdminSidebarContent: React.FC<{
   );
 };
 
+/*=== MAIN COMPONENT ===*/
 const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
   useContext(ThemeContext);
   const { socket, isConnected } = useSocket();
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [currentRoom, setCurrentRoom] = useState(roomName);
+  const [messageCache, setMessageCache] = useState<
+    Record<string, ChatMessage[]>
+  >({});
+  const messages = messageCache[currentRoom] || [];
   const [currentUser, setCurrentUser] = useState<CurrentUser>({
     id: null,
     is_admin: false,
@@ -234,7 +240,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
   const [isLeaving, setIsLeaving] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [isAdminGroup, setIsAdminGroup] = useState(false);
-  const [currentRoom, setCurrentRoom] = useState(roomName);
   const [roomList, setRoomList] = useState<GroupRoom[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [readReceipts, setReadReceipts] = useState<Record<string, Set<string>>>(
@@ -245,6 +250,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // This useEffect loads the initial room data
   useEffect(() => {
     const loadChatRoom = async () => {
       setIsLoading(true);
@@ -269,9 +275,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
 
         setGroupDetails(group);
         setIsAdminGroup(group.is_admin_group);
-
-        const initialRoom = roomName;
-        setCurrentRoom(initialRoom);
+        setCurrentRoom(roomName);
 
         if (group.is_admin_group) {
           const roomsRes = await axios.get(
@@ -285,11 +289,15 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
           `${apiUrl}/groups/${groupId}/messages`,
           {
             headers,
-            params: { roomName: initialRoom },
+            params: { roomName: roomName },
           }
         );
 
-        setMessages(historyRes.data.messages || []);
+        setMessageCache((prevCache) => ({
+          ...prevCache,
+          [roomName]: historyRes.data.messages || [],
+        }));
+
         setError(null);
       } catch (err: any) {
         console.error("Failed to load chat room:", err.message);
@@ -302,6 +310,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     loadChatRoom();
   }, [groupId, roomName]);
 
+  // This useEffect handles all socket.io events
   useEffect(() => {
     if (!socket || !isConnected || !groupDetails) return;
 
@@ -309,10 +318,19 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     socket.emit("join_room", { groupId, roomName: currentRoom });
 
     const handleReceiveMessage = (incoming: ChatMessage) => {
-      if (incoming.room_name === currentRoom) {
-        setMessages((prevMessages) => [...prevMessages, incoming]);
-      }
+      const room = incoming.room_name;
+      setMessageCache((prevCache) => {
+        const existingMessages = prevCache[room] || [];
+        if (existingMessages.find((m) => m.id === incoming.id)) {
+          return prevCache;
+        }
+        return {
+          ...prevCache,
+          [room]: [...existingMessages, incoming],
+        };
+      });
     };
+
     const handleUserTyping = (user: TypingUser) => {
       setTypingUsers((prev) =>
         prev.find((u) => u.userId === user.userId) ? prev : [...prev, user]
@@ -321,18 +339,29 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     const handleUserStopTyping = (user: { userId: string }) => {
       setTypingUsers((prev) => prev.filter((u) => u.userId !== user.userId));
     };
+
     const handleReactionUpdate = (updatedMessage: {
       id: bigint;
       reactions: any;
     }) => {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === updatedMessage.id
-            ? { ...msg, reactions: updatedMessage.reactions }
-            : msg
-        )
-      );
+      setMessageCache((prevCache) => {
+        const roomName = Object.keys(prevCache).find((room) =>
+          prevCache[room].some((msg) => msg.id === updatedMessage.id)
+        );
+
+        if (!roomName) return prevCache;
+
+        return {
+          ...prevCache,
+          [roomName]: prevCache[roomName].map((msg) =>
+            msg.id === updatedMessage.id
+              ? { ...msg, reactions: updatedMessage.reactions }
+              : msg
+          ),
+        };
+      });
     };
+
     const handleReadReceipt = (receipt: {
       messageId: bigint;
       userId: string;
@@ -368,6 +397,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
     };
   }, [socket, isConnected, groupId, currentRoom, groupDetails]);
 
+  // This useEffect handles scrolling to the bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typingUsers]);
@@ -427,12 +457,19 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
 
   const switchRoom = async (room: GroupRoom) => {
     if (room.room_name === currentRoom) return;
+
     setIsMobileSidebarOpen(false);
-    setIsLoading(true);
-    setMessages([]);
     setTypingUsers([]);
     setOnlineUsers([]);
     setCurrentRoom(room.room_name);
+
+    if (messageCache[room.room_name]) {
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const token = localStorage.getItem("auth_token");
       const historyRes = await axios.get(
@@ -442,7 +479,12 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
           params: { roomName: room.room_name },
         }
       );
-      setMessages(historyRes.data.messages || []);
+
+      setMessageCache((prevCache) => ({
+        ...prevCache,
+        [room.room_name]: historyRes.data.messages || [],
+      }));
+
       setError(null);
     } catch (err) {
       setError("Failed to load messages for this room.");
@@ -495,17 +537,15 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
           fileUrl: publicUrl,
         });
       }
+      setNewMessage("");
     } catch (err: any) {
       console.error("File upload failed:", err);
-
       setError(
         "File upload failed. The file might be too large (10MB limit) or an unsupported type."
       );
-
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsUploading(false);
-
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -524,6 +564,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
       </div>
     );
   }
+
   if (error && !groupDetails) {
     return (
       <div className="flex flex-col items-center justify-center h-[80vh] p-4">
@@ -816,7 +857,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
                       isSender
                         ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-br-none"
                         : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none"
-                    } ${msg.file_url && !msg.content ? "p-0" : "p-3"}`} // No padding if it's just a file
+                    } ${msg.file_url && !msg.content ? "p-0" : "p-3"}`}
                   >
                     {/*===== file message ====*/}
                     {msg.file_url ? (
@@ -841,7 +882,6 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
                             </span>
                           </a>
                         )}
-                        {/* Render content if it exists WITH the file */}
                         {msg.content && (
                           <p className="break-words pt-2">{msg.content}</p>
                         )}
@@ -925,7 +965,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
               ref={fileInputRef}
               onChange={handleFileSelected}
               className="hidden"
-              accept="image/png, image/jpeg, image/gif, application/pdf, text/plain" // Optional: restrict file types
+              accept="image/png, image/jpeg, image/gif, application/pdf, text/plain"
             />
 
             {/* paperclip button */}
@@ -962,10 +1002,10 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId, roomName, onBack }) => {
             </div>
             <motion.button
               type="submit"
-              disabled={!isConnected || !newMessage.trim()}
+              disabled={!isConnected || (!newMessage.trim() && !isUploading)}
               className="p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg disabled:opacity-50"
-              whileHover={{ opacity: 1.1 }}
-              whileTap={{ opacity: 0.9 }}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
             >
               <Send className="w-5 h-5" />
             </motion.button>
